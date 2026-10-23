@@ -30,7 +30,7 @@ public class PageParserTests
                 ["audio"] = new() { Selector = ".audio li", Multiple = true },
                 ["subtitles"] = new() { Selector = ".subtitles li", Multiple = true },
                 ["size"] = new() { Selector = ".size" },
-                ["link"] = new() { Selector = "a.download[href]", Attribute = "href" },
+                ["reference"] = new() { Selector = "a.download[href]", Attribute = "href" },
             },
         },
     };
@@ -101,7 +101,7 @@ public class PageParserTests
         Assert.Equal(["English", "Danish"], (IEnumerable<string>)item["audio"]!);
         Assert.Empty((IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("1.4 GB", item["size"]);
-        Assert.Equal("files/1.bin", item["link"]);
+        Assert.Equal("files/1.bin", item["reference"]);
     }
 
     [Fact]
