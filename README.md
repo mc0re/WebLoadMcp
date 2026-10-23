@@ -33,7 +33,16 @@ If the selector matches nothing, the page is a single **item**, and the fields c
   "path": "archive/items/1",
   "url": "https://example.com/archive/items/1",
   "title": "First",
-  "item": { "title": "First", "content": "Details here.", "images": [] }
+  "item": {
+    "title": "First",
+    "country": "Denmark",
+    "description": "Details here.",
+    "genres": ["Drama", "Comedy"],
+    "audio": ["English", "Danish"],
+    "subtitles": ["English"],
+    "size": "1.4 GB",
+    "link": "files/1.bin"
+  }
 }
 ```
 
@@ -51,7 +60,7 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 | `WebLoad:TimeoutSeconds`, `WebLoad:UserAgent` | HTTP client settings. |
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
-| `WebLoad:Detail:Fields` | Fields read from a single-item page. |
+| `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `link`). |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
 | `Ready:GeoIpUrl` | JSON geo-IP endpoint (default `https://ipinfo.io/json`). |
 | `Ready:CountryProperty` | JSON property that holds the country code (default `country`). |
@@ -59,14 +68,17 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 Each field has these settings:
 
 ```json
-"link": { "Selector": "a[href]", "Attribute": "href", "Multiple": false }
+"link": { "Selector": "a[href]", "Attribute": "href", "Multiple": false, "Separator": null }
 ```
 
 - `Selector`: CSS selector, evaluated inside the list item (for list pages) or the whole document (for item pages).
 - `Attribute`: read this attribute instead of the element's text. `href` and `src` values are resolved to paths relative to the base URL.
 - `Multiple`: return every match as an array instead of only the first match.
+- `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
 
-> The default selectors (`.item`, `.year`, `.title`, `a[href]`) are placeholders. Change them to match the HTML of your server.
+A list field with no matches is `[]`. A single-value field with no match is `null`.
+
+> The default CSS selectors in `appsettings.json` are placeholders until real page examples are available. Adjusting them should only need configuration changes, not code changes.
 
 ## Build and test
 

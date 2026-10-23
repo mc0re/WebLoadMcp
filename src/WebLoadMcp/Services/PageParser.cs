@@ -63,11 +63,15 @@ public sealed class PageParser
                 continue;
             }
 
-            if (field.Multiple)
+            if (field.IsList)
             {
-                result[name] = scope.QuerySelectorAll(field.Selector)
+                IEnumerable<IElement> elements = field.Multiple
+                    ? scope.QuerySelectorAll(field.Selector)
+                    : scope.QuerySelector(field.Selector) is { } first ? [first] : [];
+
+                result[name] = elements
                     .Select(e => ReadValue(e, field, pageUri))
-                    .Where(v => v is not null)
+                    .SelectMany(v => Split(v, field.Separator))
                     .ToList();
             }
             else
@@ -103,6 +107,18 @@ public sealed class PageParser
         }
 
         return _resolver.ToRelative(target) ?? target.ToString();
+    }
+
+    private static IEnumerable<string> Split(string? value, string? separator)
+    {
+        if (value is null)
+        {
+            return [];
+        }
+
+        return string.IsNullOrEmpty(separator)
+            ? [value]
+            : value.Split(separator.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     /// <summary>

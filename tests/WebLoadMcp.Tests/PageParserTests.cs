@@ -24,8 +24,13 @@ public class PageParserTests
             Fields = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["title"] = new() { Selector = "h1" },
-                ["content"] = new() { Selector = ".content" },
-                ["images"] = new() { Selector = "img[src]", Attribute = "src", Multiple = true },
+                ["country"] = new() { Selector = ".country" },
+                ["description"] = new() { Selector = ".description" },
+                ["genres"] = new() { Selector = ".genres", Separator = ",/" },
+                ["audio"] = new() { Selector = ".audio li", Multiple = true },
+                ["subtitles"] = new() { Selector = ".subtitles li", Multiple = true },
+                ["size"] = new() { Selector = ".size" },
+                ["link"] = new() { Selector = "a.download[href]", Attribute = "href" },
             },
         },
     };
@@ -72,10 +77,15 @@ public class PageParserTests
     public void PageWithoutListItems_ReturnsSingleItem()
     {
         const string html = """
-            <html><head><title>Item 1</title></head><body>
+            <html><head><title>First one</title></head><body>
               <h1>  First one </h1>
-              <div class="content"><p>Some</p><p>text</p><script>var x;</script></div>
-              <img src="img/a.png"><img src="https://cdn.org/b.png">
+              <span class="country">Denmark</span>
+              <div class="description"><p>Some</p><p>text</p><script>var x;</script></div>
+              <span class="genres">Drama, Comedy / Crime</span>
+              <ul class="audio"><li>English</li><li>Danish</li></ul>
+              <ul class="subtitles"></ul>
+              <span class="size">1.4 GB</span>
+              <a class="download" href="../files/1.bin">Download</a>
             </body></html>
             """;
 
@@ -83,9 +93,23 @@ public class PageParserTests
 
         Assert.Equal(PageKind.Item, result.Kind);
         Assert.Null(result.Items);
-        Assert.NotNull(result.Item);
-        Assert.Equal("First one", result.Item["title"]);
-        Assert.Equal("Some text", result.Item["content"]);
-        Assert.Equal(new[] { "items/img/a.png", "https://cdn.org/b.png" }, (IEnumerable<string?>)result.Item["images"]!);
+        var item = Assert.IsType<Dictionary<string, object?>>(result.Item);
+        Assert.Equal("First one", item["title"]);
+        Assert.Equal("Denmark", item["country"]);
+        Assert.Equal("Some text", item["description"]);
+        Assert.Equal(["Drama", "Comedy", "Crime"], (IEnumerable<string>)item["genres"]!);
+        Assert.Equal(["English", "Danish"], (IEnumerable<string>)item["audio"]!);
+        Assert.Empty((IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("1.4 GB", item["size"]);
+        Assert.Equal("files/1.bin", item["link"]);
+    }
+
+    [Fact]
+    public void MissingListField_IsEmptyListAndMissingScalarIsNull()
+    {
+        var result = Parser().Parse("<html><body><h1>Bare</h1></body></html>", new Uri("https://example.com/site/x"));
+
+        Assert.Empty((IEnumerable<string>)result.Item!["genres"]!);
+        Assert.Null(result.Item["size"]);
     }
 }

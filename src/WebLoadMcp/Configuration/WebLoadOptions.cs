@@ -48,4 +48,12 @@ public sealed class FieldOptions
 
     /// <summary>Return all matches as an array instead of only the first one.</summary>
     public bool Multiple { get; set; }
+
+    /// <summary>
+    /// Characters that split each value into several list entries (e.g. "," for "Drama, Comedy").
+    /// Setting it makes the field a list, like <see cref="Multiple"/>.
+    /// </summary>
+    public string? Separator { get; set; }
+
+    public bool IsList => Multiple || !string.IsNullOrEmpty(Separator);
 }
