@@ -6,7 +6,7 @@ An [MCP](https://modelcontextprotocol.io) server in C# (.NET 10) that loads page
 
 ### `load_page(path)`
 
-Loads `BaseUrl + path`. `path` must be relative. Absolute URLs, `//host` URLs and paths that use `..` to climb above the base URL are rejected before any request is sent.
+Loads `BaseUrl + path`. `path` must be relative. The base server's address is never shown to the MCP client: results and error messages contain only paths relative to it. Absolute URLs, `//host` URLs and paths that use `..` to climb above the base URL are rejected before any request is sent.
 
 If `WebLoad:List:ItemSelector` matches one or more elements, the page is a **list**:
 
@@ -14,7 +14,6 @@ If `WebLoad:List:ItemSelector` matches one or more elements, the page is a **lis
 {
   "kind": "list",
   "path": "archive/",
-  "url": "https://example.com/archive/",
   "title": "Archive",
   "items": [
     { "year": "2023", "title": "First", "link": "archive/items/1" },
@@ -31,7 +30,6 @@ If the selector matches nothing, the page is a single **item**, and the fields c
 {
   "kind": "item",
   "path": "archive/items/1",
-  "url": "https://example.com/archive/items/1",
   "title": "First",
   "item": {
     "title": "First",

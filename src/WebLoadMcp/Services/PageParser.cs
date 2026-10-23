@@ -36,7 +36,6 @@ public sealed class PageParser
             {
                 Kind = PageKind.List,
                 Path = path,
-                Url = pageUri.ToString(),
                 Title = title,
                 Items = listElements.Select(e => ExtractFields(e, _options.List.Fields, pageUri)).ToList(),
             };
@@ -46,7 +45,6 @@ public sealed class PageParser
         {
             Kind = PageKind.Item,
             Path = path,
-            Url = pageUri.ToString(),
             Title = title,
             Item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri),
         };

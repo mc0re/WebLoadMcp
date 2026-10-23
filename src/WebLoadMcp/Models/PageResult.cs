@@ -10,6 +10,7 @@ public static class PageKind
 
 /// <summary>
 /// Result of loading a page: either a list of items or a single item with details.
+/// The base server's address is never exposed; only paths relative to it are.
 /// </summary>
 public sealed class PageResult
 {
@@ -18,9 +19,6 @@ public sealed class PageResult
 
     /// <summary>The requested path, relative to the base URL.</summary>
     public required string Path { get; init; }
-
-    /// <summary>The absolute URL that was loaded.</summary>
-    public required string Url { get; init; }
 
     /// <summary>Content of the HTML &lt;title&gt; element.</summary>
     public string? Title { get; init; }
