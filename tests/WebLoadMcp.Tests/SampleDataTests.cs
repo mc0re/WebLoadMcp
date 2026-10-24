@@ -34,7 +34,7 @@ public class SampleDataTests
 
         var first = result.Items[0];
         Assert.Equal("2018", first["year"]);
-        Assert.Equal("Сага о чудовище. Сумерки / Wildling (2018) BDRemux 1080p | D, P, L2, A", first["title"]);
+        Assert.Equal("Сага о чудовище. Сумерки / Wildling", first["title"]);
         Assert.Equal("torrent/1045132/saga-o-chudoviwe-sumerki_wildling-2018-bdremux-1080p-d-p-l2-a", first["link"]);
 
         Assert.All(result.Items, item =>
@@ -51,7 +51,9 @@ public class SampleDataTests
 
         Assert.Equal(PageKind.Item, result.Kind);
         var item = result.Item!;
-        Assert.Equal("Таинственный поезд / Mystery Train (1989) BDRemux 1080p | P, А, L1", item["title"]);
+        Assert.Equal("Таинственный поезд / Mystery Train", item["title"]);
+        // The saved sample has the poster rewritten to a local file; the live page points to the real image.
+        Assert.EndsWith("/5f873b2115fe9d96b2e43712319e004c.jpg", (string)item["image"]!);
         Assert.Equal("США, Япония", item["country"]);
         Assert.StartsWith("Трилогия о событиях", (string)item["description"]!);
         Assert.EndsWith("самого Элвиса.....", (string)item["description"]!);

@@ -37,7 +37,8 @@ If the selector matches nothing, the page is a single **item**, and the fields c
     "audio": ["English", "Danish"],
     "subtitles": ["English"],
     "size": "1.4 GB",
-    "reference": "files/1.bin"
+    "image": "https://images.example.org/poster.jpg",
+    "reference": "magnet:?xt=urn:btih:..."
   }
 }
 ```
@@ -56,7 +57,7 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 | `WebLoad:TimeoutSeconds`, `WebLoad:UserAgent` | HTTP client settings. |
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
-| `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `reference`). |
+| `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
 | `Ready:GeoIpUrl` | JSON geo-IP endpoint (default `https://ipinfo.io/json`). |
 | `Ready:CountryProperty` | JSON property that holds the country code (default `country`). |
