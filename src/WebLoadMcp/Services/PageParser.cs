@@ -116,7 +116,7 @@ public sealed class PageParser
 
                 if (field.Language)
                 {
-                    list = list.Select(v => ToLanguage(v, field.Default, name, path)).OfType<string>().Where(v => v.Length > 0);
+                    list = list.SelectMany(v => ToLanguages(v, field.Default, name, path)).Where(v => v.Length > 0);
                 }
 
                 result[name] = list.ToList();
@@ -129,7 +129,7 @@ public sealed class PageParser
                     value = value is null ? null : ToCountry(value, name, path);
                 }
 
-                result[name] = field.Language ? ToLanguage(value, field.Default, name, path) : value;
+                result[name] = field.Language ? ToLanguages(value, field.Default, name, path).FirstOrDefault() : value;
             }
         }
 
@@ -150,7 +150,7 @@ public sealed class PageParser
     {
         if (!string.IsNullOrEmpty(field.Label))
         {
-            return TextAfterLabel(element, field.Selector);
+            return TextAfterLabel(element, field.Selector, field.Multiline);
         }
 
         if (string.IsNullOrEmpty(field.Attribute))
@@ -184,19 +184,20 @@ public sealed class PageParser
     }
 
     /// <summary>
-    /// Finds the language named in <paramref name="value"/>: the first word that starts with
+    /// Finds the languages named in <paramref name="value"/>, in order: every word that starts with
     /// one of the configured language stems. Returns <paramref name="defaultLanguage"/> when no
     /// language is named, and an empty string for stems mapped to "" (e.g. "нет").
     /// Short stems (codes like "eng", abbreviations like "рус") must match a whole word,
     /// so that e.g. "per" does not match "performance".
     /// </summary>
-    private string? ToLanguage(string? value, string? defaultLanguage, string field, string path)
+    private List<string> ToLanguages(string? value, string? defaultLanguage, string field, string path)
     {
         if (value is null)
         {
-            return null;
+            return [];
         }
 
+        var found = new List<string>();
         foreach (var word in Regex.Split(value, @"[^\p{L}]+"))
         {
             foreach (var (stem, language) in _languageStems)
@@ -206,14 +207,24 @@ public sealed class PageParser
                     : word.StartsWith(stem, StringComparison.OrdinalIgnoreCase);
                 if (matches)
                 {
-                    return language;
+                    if (!found.Contains(language))
+                    {
+                        found.Add(language);
+                    }
+
+                    break;
                 }
             }
         }
 
+        if (found.Count > 0)
+        {
+            return found;
+        }
+
         _logger.LogInformation(
             "{Path}: no known language in {Field} value \"{Value}\", using \"{Default}\"", path, field, value, defaultLanguage);
-        return defaultLanguage;
+        return defaultLanguage is null ? [] : [defaultLanguage];
     }
 
     /// <summary>Maps a country name as written on the site to its configured name, or <c>null</c> if it is not a known country.</summary>
@@ -318,10 +329,25 @@ public sealed class PageParser
     /// The value ends at the next line break or the next label. If the label is directly followed
     /// by a line break, the value is taken from the next line.
     /// </summary>
-    private static string? TextAfterLabel(IElement label, string labelSelector)
+    private static string? TextAfterLabel(IElement label, string labelSelector, bool multiline)
     {
+        var lines = new List<string>();
         var text = new StringBuilder();
         var skippedBreak = false;
+
+        // Adds the text collected so far as a line; returns false if there was none.
+        bool EndLine()
+        {
+            var line = Normalize(lines.Count == 0 ? StripColon(text.ToString()) : text.ToString());
+            text.Clear();
+            if (line is null)
+            {
+                return false;
+            }
+
+            lines.Add(line);
+            return true;
+        }
 
         for (var node = label.NextSibling; node is not null; node = node.NextSibling)
         {
@@ -338,12 +364,23 @@ public sealed class PageParser
 
             if (element.LocalName == "br")
             {
-                if (!string.IsNullOrWhiteSpace(StripColon(text.ToString())) || skippedBreak)
+                if (EndLine())
                 {
+                    if (!multiline)
+                    {
+                        break;
+                    }
+                }
+                else if (lines.Count > 0 || skippedBreak)
+                {
+                    // An empty line ends the value; so does a second break right after the label.
                     break;
                 }
+                else
+                {
+                    skippedBreak = true;
+                }
 
-                skippedBreak = true;
                 continue;
             }
 
@@ -355,7 +392,8 @@ public sealed class PageParser
             text.Append(GetText(element));
         }
 
-        return Normalize(StripColon(text.ToString()));
+        EndLine();
+        return lines.Count == 0 ? null : string.Join('\n', lines);
     }
 
     /// <summary>Removes the colon that follows a label written as <c>&lt;b&gt;Label&lt;/b&gt;: value</c>.</summary>
@@ -381,6 +419,7 @@ public sealed class PageParser
         return Normalize(match.Groups.Count > 1 ? match.Groups[1].Value : match.Value);
     }
 
+    /// <summary>Splits at any separator character that is not inside brackets, as in "английские (full, SDH)".</summary>
     private static IEnumerable<string> Split(string? value, string? separator)
     {
         if (value is null)
@@ -388,9 +427,37 @@ public sealed class PageParser
             return [];
         }
 
-        return string.IsNullOrEmpty(separator)
-            ? [value]
-            : value.Split(separator.ToCharArray(), StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (string.IsNullOrEmpty(separator))
+        {
+            return [value];
+        }
+
+        var parts = new List<string>();
+        var start = 0;
+        var depth = 0;
+        for (var i = 0; i < value.Length; i++)
+        {
+            switch (value[i])
+            {
+                case '(' or '[':
+                    depth++;
+                    break;
+                case ')' or ']':
+                    depth = Math.Max(0, depth - 1);
+                    break;
+                default:
+                    if (depth == 0 && separator.Contains(value[i]))
+                    {
+                        parts.Add(value[start..i]);
+                        start = i + 1;
+                    }
+
+                    break;
+            }
+        }
+
+        parts.Add(value[start..]);
+        return parts.Select(p => p.Trim()).Where(p => p.Length > 0);
     }
 
     /// <summary>

@@ -143,6 +143,47 @@ public class SampleDataTests
     }
 
     [Fact]
+    public void ItemPage5_SeveralLanguagesOnOneAudioLine()
+    {
+        var result = Parse("item5.html", "1/x");
+
+        var item = result.Item!;
+        Assert.Equal("Смерть ходит на высоких каблуках / La morte cammina con i tacchi alti", item["title"]);
+        Assert.Equal("1971", item["year"]);
+        Assert.Equal(["Italy", "Spain", "United Kingdom", "France"], (IEnumerable<string>)item["country"]!);
+        Assert.StartsWith("Знаменитый вор драгоценностей", (string)item["description"]!);
+        Assert.EndsWith("следует за ней по пятам…", (string)item["description"]!);
+        Assert.Equal(["Детектив", "джалло", "слэшер", "триллер", "криминал", "ужасы"], (IEnumerable<string>)item["genres"]!);
+        Assert.Equal(["Russian", "English", "Italian"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["English"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("2.74 GB", item["size"]);
+        Assert.Equal("https://i125.fastpic.org/big/2025/0708/a4/9ab0720fef4876ddee2ad75e06677ea4.jpg", item["image"]);
+        Assert.Null(result.Warnings);
+    }
+
+    [Fact]
+    public void ItemPage6_ProductionLabelMultilineDescriptionAndBracketsInSubtitles()
+    {
+        var result = Parse("item6.html", "1/x");
+
+        var item = result.Item!;
+        Assert.Equal("Морские котики / Navy Seals", item["title"]);
+        Assert.Equal("1990", item["year"]);
+        Assert.Equal(["United States"], (IEnumerable<string>)item["country"]!);
+        var description = ((string)item["description"]!).Split('\n');
+        Assert.Equal(2, description.Length);
+        Assert.StartsWith("Сюжет фильма разворачивается", description[0]);
+        Assert.StartsWith("Главная задача отряда", description[1]);
+        Assert.EndsWith("в охваченном войной Бейруте.", description[1]);
+        Assert.Equal(["боевик", "триллер", "приключения"], (IEnumerable<string>)item["genres"]!);
+        Assert.Equal(["Russian", "English"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["English"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("14.64 GB", item["size"]);
+        Assert.Equal("https://i4.imageban.ru/out/2025/07/10/815bd90b3e59199b26959e6c0e76c1ac.jpeg", item["image"]);
+        Assert.Null(result.Warnings);
+    }
+
+    [Fact]
     public void NoLanguageStemsBindAsEmpty() =>
         Assert.Equal("", Options.Languages["нет"]);
 }

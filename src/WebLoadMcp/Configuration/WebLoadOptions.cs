@@ -103,6 +103,12 @@ public sealed class FieldOptions
     public string? Label { get; set; }
 
     /// <summary>
+    /// With <see cref="Label"/>: the value continues over line breaks until an empty line
+    /// or the next label; lines are joined with "\n". Without it, the value ends at the first line break.
+    /// </summary>
+    public bool Multiline { get; set; }
+
+    /// <summary>
     /// Regular expression applied to the value: the first capture group is used if there is one,
     /// otherwise the whole match. No match gives an empty value.
     /// </summary>
@@ -124,7 +130,7 @@ public sealed class FieldOptions
     public string? Separator { get; set; }
 
     /// <summary>
-    /// Replace each value with the language it names (see <see cref="WebLoadOptions.Languages"/>),
+    /// Replace each value with the languages it names (see <see cref="WebLoadOptions.Languages"/>),
     /// or with <see cref="Default"/> when it names none.
     /// </summary>
     public bool Language { get; set; }
