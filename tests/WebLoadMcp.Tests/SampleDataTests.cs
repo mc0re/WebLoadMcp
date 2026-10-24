@@ -83,7 +83,7 @@ public class SampleDataTests
         Assert.Equal(["Russian"], (IEnumerable<string>)item["audio"]!);
         Assert.Equal(["Russian", "English"], (IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("2.98 GB", item["size"]);
-        Assert.EndsWith("/9a2bf4c70684b77b702360622cab0900.png", (string)item["image"]!);
+        Assert.Equal("https://i1.imageban.ru/out/2018/10/20/9a2bf4c70684b77b702360622cab0900.png", item["image"]);
         Assert.StartsWith("magnet:?xt=urn:btih:", (string)item["reference"]!);
         Assert.EndsWith("&dn=" + Uri.EscapeDataString("С меня хватит / Enough (2002)"), (string)item["reference"]!);
         Assert.Null(result.Warnings);
