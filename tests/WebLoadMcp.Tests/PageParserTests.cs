@@ -111,4 +111,27 @@ public class PageParserTests
         Assert.Empty((IEnumerable<string>)result.Item!["genres"]!);
         Assert.Null(result.Item["size"]);
     }
+
+    [Theory]
+    [InlineData("<b>Аудио:</b> AC3, 6 ch<br>", "<b>Субтитры</b>: нет<br>", new[] { "Русский" }, new string[0])]
+    [InlineData("<b>Аудио 1:</b> Английский AC3<br><b>Аудио 2:</b> AC3 - Оригинальная дорожка<br>", "<b>Субтитры:</b> English, рус.<br>", new[] { "Английский", "Оригинал" }, new[] { "Английский", "Русский" })]
+    public void LanguageFields(string audioHtml, string subtitlesHtml, string[] audio, string[] subtitles)
+    {
+        var options = Options();
+        options.Detail.Fields = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["audio"] = new() { Selector = "b", Label = "Аудио", Multiple = true, Language = true, Default = "Русский", Distinct = true },
+            ["subtitles"] = new() { Selector = "b", Label = "Субтитры", Separator = ",", Language = true, Default = "Русский", Distinct = true },
+        };
+        options.Languages = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["рус"] = "Русский", ["англ"] = "Английский", ["eng"] = "Английский", ["оригинал"] = "Оригинал", ["нет"] = "",
+        };
+
+        var result = new PageParser(options, new PathResolver(options.BaseUrl))
+            .Parse($"<html><body>{audioHtml}{subtitlesHtml}</body></html>", new Uri("https://example.com/site/x"));
+
+        Assert.Equal(audio, (IEnumerable<string>)result.Item!["audio"]!);
+        Assert.Equal(subtitles, (IEnumerable<string>)result.Item["subtitles"]!);
+    }
 }

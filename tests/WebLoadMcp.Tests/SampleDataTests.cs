@@ -58,19 +58,38 @@ public class SampleDataTests
         Assert.StartsWith("Трилогия о событиях", (string)item["description"]!);
         Assert.EndsWith("самого Элвиса.....", (string)item["description"]!);
         Assert.Equal(["Комедия", "драма"], (IEnumerable<string>)item["genres"]!);
-        Assert.Equal(
-            [
-                "Русский AC3 2.0 / 192 kbps / 48 kHz - Многоголосый закадровый (Кармен Видео)",
-                "Русский AC3 1.0 / 128 kbps / 48 kHz - Авторский (А. Алексеев)",
-                "Русский AC3 1.0 / 128 kbps / 48 kHz - Одноголосый (женская озвучка)",
-                "Английский LPCM 1.0 / 1152 kbps / 48 kHz / 24-bit",
-            ],
-            (IEnumerable<string>)item["audio"]!);
-        Assert.Equal(["Русские", "английские"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("28.35 GB", item["size"]);
         Assert.Equal(
             "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=" + Uri.EscapeDataString("Таинственный поезд / Mystery Train (1989)"),
             item["reference"]);
         Assert.Null(result.Warnings);
     }
+
+    [Fact]
+    public void ItemPage2_ColonAfterLabelAndUnnamedAudioLanguage()
+    {
+        var result = Parse("item2.html", "torrent/586668/s-menja-hvatit_enough-2002-web-dlrip-avc-ot-domino-d");
+
+        Assert.Equal(PageKind.Item, result.Kind);
+        var item = result.Item!;
+        Assert.Equal("С меня хватит / Enough", item["title"]);
+        Assert.Equal("2002", item["year"]);
+        Assert.Equal("США, Columbia Pictures Corporation, Winkler Films", item["country"]);
+        Assert.StartsWith("Жизнь официантки Слим", (string)item["description"]!);
+        Assert.EndsWith("что с нее довольно.", (string)item["description"]!);
+        Assert.Equal(["Триллер", "драма"], (IEnumerable<string>)item["genres"]!);
+        Assert.Equal(["Русский"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("2.98 GB", item["size"]);
+        Assert.EndsWith("/9a2bf4c70684b77b702360622cab0900.png", (string)item["image"]!);
+        Assert.StartsWith("magnet:?xt=urn:btih:", (string)item["reference"]!);
+        Assert.EndsWith("&dn=" + Uri.EscapeDataString("С меня хватит / Enough (2002)"), (string)item["reference"]!);
+        Assert.Null(result.Warnings);
+    }
+
+    [Fact]
+    public void NoLanguageStemsBindAsEmpty() =>
+        Assert.Equal("", Options.Languages["нет"]);
 }

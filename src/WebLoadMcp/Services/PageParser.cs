@@ -15,6 +15,7 @@ public sealed class PageParser
     private readonly WebLoadOptions _options;
     private readonly PathResolver _resolver;
     private readonly MagnetLinkRewriter _magnet;
+    private readonly List<KeyValuePair<string, string>> _languageStems;
     private readonly HtmlParser _htmlParser = new();
 
     public PageParser(WebLoadOptions options, PathResolver resolver)
@@ -22,6 +23,12 @@ public sealed class PageParser
         _options = options;
         _resolver = resolver;
         _magnet = new MagnetLinkRewriter(options.Magnet);
+
+        // Longest stems first, so a specific stem wins over a shorter one it starts with.
+        _languageStems = options.Languages
+            .Where(p => !string.IsNullOrWhiteSpace(p.Key))
+            .OrderByDescending(p => p.Key.Length)
+            .ToList();
     }
 
     public PageResult Parse(string html, Uri pageUri)
@@ -72,9 +79,21 @@ public sealed class PageParser
             var values = (field.Multiple ? elements : elements.Take(1))
                 .Select(e => ApplyPattern(ReadValue(e, field, pageUri), field.Pattern));
 
-            result[name] = field.IsList
-                ? values.SelectMany(v => Split(v, field.Separator)).ToList()
-                : values.FirstOrDefault();
+            if (field.IsList)
+            {
+                var list = values.SelectMany(v => Split(v, field.Separator));
+                if (field.Language)
+                {
+                    list = list.Select(v => ToLanguage(v, field.Default)).OfType<string>().Where(v => v.Length > 0);
+                }
+
+                result[name] = (field.Distinct ? list.Distinct(StringComparer.OrdinalIgnoreCase) : list).ToList();
+            }
+            else
+            {
+                var value = values.FirstOrDefault();
+                result[name] = field.Language ? ToLanguage(value, field.Default) : value;
+            }
         }
 
         return result;
@@ -117,8 +136,39 @@ public sealed class PageParser
         return Uri.TryCreate(value.Trim(), UriKind.Absolute, out _) ? value.Trim() : target.ToString();
     }
 
-    private static bool HasLabel(IElement element, string label) =>
-        Normalize(element.TextContent)?.TrimEnd(':', ' ').StartsWith(label, StringComparison.OrdinalIgnoreCase) == true;
+    /// <summary>
+    /// Finds the language named in <paramref name="value"/>: the first word that starts with
+    /// one of the configured language stems. Returns <paramref name="defaultLanguage"/> when no
+    /// language is named, and an empty string for stems mapped to "" (e.g. "нет").
+    /// </summary>
+    private string? ToLanguage(string? value, string? defaultLanguage)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        foreach (var word in Regex.Split(value, @"[^\p{L}]+"))
+        {
+            foreach (var (stem, language) in _languageStems)
+            {
+                if (word.StartsWith(stem, StringComparison.OrdinalIgnoreCase))
+                {
+                    return language;
+                }
+            }
+        }
+
+        return defaultLanguage;
+    }
+
+    /// <summary>Checks the element's text against the label, or against any of several labels separated by '|'.</summary>
+    private static bool HasLabel(IElement element, string label)
+    {
+        var text = Normalize(element.TextContent)?.TrimEnd(':', ' ');
+        return text is not null && label.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Any(l => text.StartsWith(l, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     /// Reads the text that follows a label element, as in <c>&lt;b&gt;Country:&lt;/b&gt; USA&lt;br&gt;</c>
@@ -146,7 +196,7 @@ public sealed class PageParser
 
             if (element.LocalName == "br")
             {
-                if (!string.IsNullOrWhiteSpace(text.ToString()) || skippedBreak)
+                if (!string.IsNullOrWhiteSpace(StripColon(text.ToString())) || skippedBreak)
                 {
                     break;
                 }
@@ -163,8 +213,11 @@ public sealed class PageParser
             text.Append(GetText(element));
         }
 
-        return Normalize(text.ToString());
+        return Normalize(StripColon(text.ToString()));
     }
+
+    /// <summary>Removes the colon that follows a label written as <c>&lt;b&gt;Label&lt;/b&gt;: value</c>.</summary>
+    private static string StripColon(string text) => text.TrimStart().TrimStart(':');
 
     /// <summary>
     /// Narrows the value with a regular expression: the first capture group if the pattern has one,

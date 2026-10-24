@@ -35,8 +35,8 @@ If the selector matches nothing, the page is a single **item**, and the fields c
     "country": "Denmark",
     "description": "Details here.",
     "genres": ["Drama", "Comedy"],
-    "audio": ["English", "Danish"],
-    "subtitles": ["English"],
+    "audio": ["Русский", "Английский"],
+    "subtitles": ["Русский"],
     "size": "1.4 GB",
     "image": "https://images.example.org/poster.jpg",
     "reference": "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=First%20%282023%29"
@@ -69,6 +69,7 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
 | `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `year`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
+| `WebLoad:Languages` | Language names by word stem, used by `Language` fields (`audio`, `subtitles`). |
 | `WebLoad:Magnet:Field` | Item field holding the magnet link to rewrite (default `reference`; empty turns the rewrite off). |
 | `WebLoad:Magnet:Trackers` | Trackers expected in the site's magnet links. |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
@@ -83,14 +84,18 @@ Each field has these settings:
 
 - `Selector`: CSS selector, evaluated inside the list item (for list pages) or the whole document (for item pages).
 - `Attribute`: read this attribute instead of the element's text. `href` and `src` values that point to the base server become relative paths; other links (e.g. `magnet:`) are returned exactly as written.
-- `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>`. If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
+- `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>` or `<b>Страна</b>: США, Япония<br>`. Several labels can be given as alternatives, separated by `|` (`"Страна|Выпущено"`). If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
 - `Pattern`: regular expression applied to the value; the first capture group is returned (or the whole match), e.g. `\((\d{4})` (written `"\\((\\d{4})"` in JSON) takes `2018` from `Wildling (2018) BDRemux`.
 - `Multiple`: return every match as an array instead of only the first match.
 - `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
 
+- `Language`: replace each value with the language it names, looked up in `WebLoad:Languages` (word stem → name, e.g. `"рус": "Русский"`, `"eng": "Английский"`). A value that names no language becomes `Default`. A stem mapped to `""` (e.g. `"нет"`) means "none", and the value is dropped.
+- `Default`: the value used when `Language` finds no language name. It's `Русский` for audio and subtitles.
+- `Distinct`: remove duplicates from a list field.
+
 A list field with no matches is `[]`. A single-value field with no match is `null`.
 
-The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
+The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html`, `item2.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
 
 ## Build and test
 

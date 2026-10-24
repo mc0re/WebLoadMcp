@@ -20,6 +20,12 @@ public sealed class WebLoadOptions
     public DetailPageOptions Detail { get; set; } = new();
 
     public MagnetOptions Magnet { get; set; } = new();
+
+    /// <summary>
+    /// Language names by word stem (e.g. "рус" → "Русский", "eng" → "Английский"), used by fields
+    /// with <see cref="FieldOptions.Language"/>. A stem mapped to "" means "no language" (e.g. "нет").
+    /// </summary>
+    public Dictionary<string, string> Languages { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -65,6 +71,7 @@ public sealed class FieldOptions
 
     /// <summary>
     /// Only use elements matched by <see cref="Selector"/> whose text starts with this label
+    /// (or with any of several labels separated by '|')
     /// (e.g. "Country" for <c>&lt;b&gt;Country:&lt;/b&gt; USA&lt;br&gt;</c>).
     /// The value is then the text following the label element, not the element itself.
     /// </summary>
@@ -84,6 +91,18 @@ public sealed class FieldOptions
     /// Setting it makes the field a list, like <see cref="Multiple"/>.
     /// </summary>
     public string? Separator { get; set; }
+
+    /// <summary>
+    /// Replace each value with the language it names (see <see cref="WebLoadOptions.Languages"/>),
+    /// or with <see cref="Default"/> when it names none.
+    /// </summary>
+    public bool Language { get; set; }
+
+    /// <summary>Value used when <see cref="Language"/> finds no language name.</summary>
+    public string? Default { get; set; }
+
+    /// <summary>Remove duplicate values from a list field.</summary>
+    public bool Distinct { get; set; }
 
     public bool IsList => Multiple || !string.IsNullOrEmpty(Separator);
 }
