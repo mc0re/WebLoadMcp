@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using WebLoadMcp.Configuration;
 using WebLoadMcp.Models;
 
@@ -15,15 +17,17 @@ public sealed class PageParser
     private const int MaxWholeWordStem = 3;
 
     private readonly WebLoadOptions _options;
+    private readonly ILogger<PageParser> _logger;
     private readonly PathResolver _resolver;
     private readonly MagnetLinkRewriter _magnet;
     private readonly List<KeyValuePair<string, string>> _languageStems;
     private readonly Dictionary<string, string> _languageByCountry;
     private readonly HtmlParser _htmlParser = new();
 
-    public PageParser(WebLoadOptions options, PathResolver resolver)
+    public PageParser(WebLoadOptions options, PathResolver resolver, ILogger<PageParser>? logger = null)
     {
         _options = options;
+        _logger = logger ?? NullLogger<PageParser>.Instance;
         _resolver = resolver;
         _magnet = new MagnetLinkRewriter(options.Magnet);
 
@@ -54,11 +58,11 @@ public sealed class PageParser
             {
                 Kind = PageKind.List,
                 Path = path,
-                Items = listElements.Select(e => ExtractFields(e, _options.List.Fields, pageUri)).ToList(),
+                Items = listElements.Select(e => ExtractFields(e, _options.List.Fields, pageUri, path)).ToList(),
             };
         }
 
-        var item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri);
+        var item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri, path);
         var warnings = new List<string>();
         _magnet.Rewrite(item, warnings);
 
@@ -71,7 +75,7 @@ public sealed class PageParser
         };
     }
 
-    private Dictionary<string, object?> ExtractFields(IElement scope, Dictionary<string, FieldOptions> fields, Uri pageUri)
+    private Dictionary<string, object?> ExtractFields(IElement scope, Dictionary<string, FieldOptions> fields, Uri pageUri, string path)
     {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
@@ -92,12 +96,12 @@ public sealed class PageParser
                 var list = values.SelectMany(v => Split(v, field.Separator));
                 if (field.Country)
                 {
-                    list = list.Select(ToCountry).OfType<string>();
+                    list = list.Select(v => ToCountry(v, name, path)).OfType<string>();
                 }
 
                 if (field.Language)
                 {
-                    list = list.Select(v => ToLanguage(v, field.Default)).OfType<string>().Where(v => v.Length > 0);
+                    list = list.Select(v => ToLanguage(v, field.Default, name, path)).OfType<string>().Where(v => v.Length > 0);
                 }
 
                 result[name] = list.ToList();
@@ -107,14 +111,14 @@ public sealed class PageParser
                 var value = values.FirstOrDefault();
                 if (field.Country)
                 {
-                    value = value is null ? null : ToCountry(value);
+                    value = value is null ? null : ToCountry(value, name, path);
                 }
 
-                result[name] = field.Language ? ToLanguage(value, field.Default) : value;
+                result[name] = field.Language ? ToLanguage(value, field.Default, name, path) : value;
             }
         }
 
-        ResolveOriginalLanguage(result, fields);
+        ResolveOriginalLanguage(result, fields, path);
 
         foreach (var (name, field) in fields)
         {
@@ -171,7 +175,7 @@ public sealed class PageParser
     /// Short stems (codes like "eng", abbreviations like "рус") must match a whole word,
     /// so that e.g. "per" does not match "performance".
     /// </summary>
-    private string? ToLanguage(string? value, string? defaultLanguage)
+    private string? ToLanguage(string? value, string? defaultLanguage, string field, string path)
     {
         if (value is null)
         {
@@ -192,20 +196,29 @@ public sealed class PageParser
             }
         }
 
+        _logger.LogInformation(
+            "{Path}: no known language in {Field} value \"{Value}\", using \"{Default}\"", path, field, value, defaultLanguage);
         return defaultLanguage;
     }
 
     /// <summary>Maps a country name as written on the site to its configured name, or <c>null</c> if it is not a known country.</summary>
-    private string? ToCountry(string value) =>
-        _options.Countries.TryGetValue(value.Trim(), out var country) && !string.IsNullOrWhiteSpace(country.Name)
-            ? country.Name
-            : null;
+    private string? ToCountry(string value, string field, string path)
+    {
+        if (_options.Countries.TryGetValue(value.Trim(), out var country) && !string.IsNullOrWhiteSpace(country.Name))
+        {
+            return country.Name;
+        }
+
+        // Lines like "Выпущено: США, Columbia Pictures" also list studios, which end up here too.
+        _logger.LogInformation("{Path}: unknown country \"{Value}\" in {Field}, ignored", path, value.Trim(), field);
+        return null;
+    }
 
     /// <summary>
     /// Replaces <see cref="WebLoadOptions.OriginalLanguage"/> in language fields with the language of the
     /// first production country, or with "Original" when that country's language is not known.
     /// </summary>
-    private void ResolveOriginalLanguage(Dictionary<string, object?> item, Dictionary<string, FieldOptions> fields)
+    private void ResolveOriginalLanguage(Dictionary<string, object?> item, Dictionary<string, FieldOptions> fields, string path)
     {
         var firstCountry = fields
             .Where(f => f.Value.Country)
@@ -214,17 +227,35 @@ public sealed class PageParser
             .FirstOrDefault(c => c is not null);
         var original = firstCountry is not null && _languageByCountry.TryGetValue(firstCountry, out var language)
             ? language
-            : "Original";
+            : null;
 
         foreach (var (name, field) in fields.Where(f => f.Value.Language))
         {
-            switch (item.GetValueOrDefault(name))
+            var value = item.GetValueOrDefault(name);
+            var hasOriginal = value is WebLoadOptions.OriginalLanguage ||
+                value is List<string> values && values.Contains(WebLoadOptions.OriginalLanguage);
+            if (!hasOriginal)
+            {
+                continue;
+            }
+
+            if (firstCountry is null)
+            {
+                _logger.LogInformation("{Path}: original-language track in {Field}, but no known country", path, name);
+            }
+            else if (original is null)
+            {
+                _logger.LogInformation(
+                    "{Path}: original-language track in {Field}, but the language of {Country} is not known", path, name, firstCountry);
+            }
+
+            switch (value)
             {
                 case List<string> list:
-                    item[name] = list.Select(v => v == WebLoadOptions.OriginalLanguage ? original : v).ToList();
+                    item[name] = list.Select(v => v == WebLoadOptions.OriginalLanguage ? original ?? "Original" : v).ToList();
                     break;
                 case WebLoadOptions.OriginalLanguage:
-                    item[name] = original;
+                    item[name] = original ?? "Original";
                     break;
             }
         }

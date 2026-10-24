@@ -141,7 +141,35 @@ public class PageParserTests
         Assert.Equal([original], (IEnumerable<string>)result.Item["audio"]!);
     }
 
-    private static PageParser LanguageParser()
+    [Fact]
+    public void UnknownCountriesAndLanguagesAreLogged()
+    {
+        var logger = new ListLogger<PageParser>();
+        LanguageParser(logger).Parse(
+            "<html><body><b>Выпущено</b>: Атлантида, США<br><b>Аудио 1:</b> Клингонский<br><b>Аудио 2:</b> Русский<br></body></html>",
+            new Uri("https://example.com/site/x"));
+
+        Assert.Equal(
+            [
+                "x: unknown country \"Атлантида\" in country, ignored",
+                "x: no known language in audio value \"Клингонский\", using \"Russian\"",
+            ],
+            logger.Messages);
+    }
+
+    [Theory]
+    [InlineData("<b>Выпущено</b>: Some Studio<br>", "x: original-language track in audio, but no known country")]
+    [InlineData("<b>Страна</b>: Атлантида<br>", "x: original-language track in audio, but no known country")]
+    [InlineData("<b>Страна</b>: Утопия<br>", "x: original-language track in audio, but the language of Utopia is not known")]
+    public void UnresolvedOriginalLanguageIsLogged(string countryHtml, string expected)
+    {
+        var logger = new ListLogger<PageParser>();
+        LanguageParser(logger).Parse($"<html><body>{countryHtml}<b>Аудио:</b> оригинал<br></body></html>", new Uri("https://example.com/site/x"));
+
+        Assert.Contains(expected, logger.Messages);
+    }
+
+    private static PageParser LanguageParser(ListLogger<PageParser>? logger = null)
     {
         var options = Options();
         options.Detail.Fields = new(StringComparer.OrdinalIgnoreCase)
@@ -162,7 +190,8 @@ public class PageParserTests
             ["США"] = new() { Name = "United States", Language = "English" },
             ["Великобритания"] = new() { Name = "United Kingdom", Language = "English" },
             ["Франция"] = new() { Name = "France", Language = "French" },
+            ["Утопия"] = new() { Name = "Utopia" },
         };
-        return new PageParser(options, new PathResolver(options.BaseUrl));
+        return new PageParser(options, new PathResolver(options.BaseUrl), logger);
     }
 }

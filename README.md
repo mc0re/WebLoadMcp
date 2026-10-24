@@ -99,6 +99,12 @@ Each field has these settings:
 
 A list field with no matches is `[]`. A single-value field with no match is `null`.
 
+Values that don't match are written to the server log (stderr) at Information level, so the lists can be extended:
+
+- unknown countries;
+- values that name no known language, which fall back to `Default`;
+- original-language tracks whose country, or its language, is unknown.
+
 The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html`, `item2.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
 
 ## Build and test
