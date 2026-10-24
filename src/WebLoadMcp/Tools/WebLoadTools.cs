@@ -18,19 +18,29 @@ public sealed class WebLoadTools
         _readyChecker = readyChecker;
     }
 
-    [McpServerTool(Name = "load_page", ReadOnly = true, Idempotent = true)]
+    [McpServerTool(Name = "get_list", ReadOnly = true, Idempotent = true)]
     [Description(
-        "Loads a page from the predefined server and parses it. " +
-        "Returns kind='list' with 'items' (each with 'year', 'title' and 'link') when the page is a list, " +
-        "or kind='item' with 'item' details otherwise. " +
-        "An item's 'link' is a path relative to the server; pass it back to this tool to load that item's details.")]
-    public async Task<PageResult> LoadPage(
-        [Description("Path relative to the server's base URL, e.g. 'news/' or 'news/42?lang=en'.")] string path,
-        CancellationToken cancellationToken)
+        "Loads a list page and returns its 'items', each with 'year', 'title' and 'link'. " +
+        "Pass an item's 'link' to get_item to load that item's details.")]
+    public Task<PageResult> GetList(
+        [Description("Path of the list page, e.g. '0/1/0/0'.")] string path,
+        CancellationToken cancellationToken) =>
+        Run(() => _loader.LoadListAsync(path, cancellationToken));
+
+    [McpServerTool(Name = "get_item", ReadOnly = true, Idempotent = true)]
+    [Description(
+        "Loads an item page and returns its details in 'item': title, year, country, description, genres, " +
+        "audio and subtitle languages, size, image and a magnet link in 'reference'.")]
+    public Task<PageResult> GetItem(
+        [Description("Path of the item, as given in a list item's 'link', e.g. '1045135/mystery-train-1989'.")] string path,
+        CancellationToken cancellationToken) =>
+        Run(() => _loader.LoadItemAsync(path, cancellationToken));
+
+    private static async Task<PageResult> Run(Func<Task<PageResult>> load)
     {
         try
         {
-            return await _loader.LoadAsync(path, cancellationToken);
+            return await load();
         }
         catch (Exception ex) when (ex is ArgumentException or HttpRequestException)
         {

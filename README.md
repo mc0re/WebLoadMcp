@@ -1,34 +1,36 @@
 # WebLoadMcp
 
-An [MCP](https://modelcontextprotocol.io) server in C# (.NET 10) that loads pages from one predefined web server, parses the HTML, and returns either a list of items or a single item with details. It also has a `ready` check that reports whether the machine's public IP is outside a given country.
+An [MCP](https://modelcontextprotocol.io) server in C# (.NET 10) that loads pages from one predefined web server, parses the HTML, and returns either a list of items (`get_list`) or a single item with details (`get_item`). It also has a `ready` check that reports whether the machine's public IP is outside a given country.
 
 ## Tools
 
-### `load_page(path)`
+Both page tools take a path relative to a prefix from the settings. The base server's address is never shown to the MCP client: results and error messages contain only these relative paths. Absolute URLs, `//host` URLs and paths that use `..` to leave the prefix are rejected before any request is sent.
 
-Loads `BaseUrl + path`. `path` must be relative. The base server's address is never shown to the MCP client: results and error messages contain only paths relative to it. Absolute URLs, `//host` URLs and paths that use `..` to climb above the base URL are rejected before any request is sent.
+### `get_list(path)`
 
-If `WebLoad:List:ItemSelector` matches one or more elements, the page is a **list**:
+Loads `BaseUrl + WebLoad:List:PathPrefix + path`. For example, `1/0/0/0` loads `<site>/browse/1/0/0/0`. Each row matching `WebLoad:List:ItemSelector` becomes an item:
 
 ```json
 {
   "kind": "list",
-  "path": "archive/",
+  "path": "1/0/0/0",
   "items": [
-    { "year": "2023", "title": "First", "link": "archive/items/1" },
-    { "year": "2024", "title": "Second", "link": "archive/items/2" }
+    { "year": "2018", "title": "Wildling", "link": "1045132/wildling-2018-bdremux-1080p" },
+    { "year": "1989", "title": "Mystery Train", "link": "1045135/mystery-train-1989-bdremux-1080p" }
   ]
 }
 ```
 
-`link` is a path relative to the base URL. Pass it back to `load_page` to get that item's details. Links that point to another server stay absolute.
+`link` is relative to the item prefix (`torrent/` is removed), so you can pass it straight to `get_item`. Links that point to another server stay absolute. A page with no matching rows gives an empty `items` list.
 
-If the selector matches nothing, the page is a single **item**, and the fields come from `WebLoad:Detail:Fields`:
+### `get_item(path)`
+
+Loads `BaseUrl + WebLoad:Detail:PathPrefix + path`. For example, `1045135/mystery-train-1989-bdremux-1080p` loads `<site>/torrent/1045135/…`. The fields come from `WebLoad:Detail:Fields`:
 
 ```json
 {
   "kind": "item",
-  "path": "archive/items/1",
+  "path": "1045135/mystery-train-1989-bdremux-1080p",
   "item": {
     "title": "First",
     "year": "2023",
@@ -66,11 +68,14 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 |---|---|
 | `WebLoad:BaseUrl` | **Required.** Absolute http(s) URL of the server. |
 | `WebLoad:TimeoutSeconds`, `WebLoad:UserAgent` | HTTP client settings. |
+| `WebLoad:List:PathPrefix` | Path of list pages under `BaseUrl` (`browse/`). `get_list` paths are relative to it. |
+| `WebLoad:Detail:PathPrefix` | Path of item pages under `BaseUrl` (`torrent/`). `get_item` paths, and list items' `link`, are relative to it. |
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
 | `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `year`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
 | `WebLoad:Languages` | English language names by word stem, used by `Language` fields (`audio`, `subtitles`). |
 | `WebLoad:Countries` | Country names as written on the site, each with `Name` (English) and `Language` (the country's main film language). Used by the `country` field and to resolve original-language tracks. |
+| `Logging:File:Path` | Log file to write in addition to stderr. A relative path is relative to the application folder. Empty (the default) turns it off. Levels are set under `Logging:File:LogLevel`. |
 | `WebLoad:Magnet:Field` | Item field holding the magnet link to rewrite (default `reference`; empty turns the rewrite off). |
 | `WebLoad:Magnet:Trackers` | Trackers expected in the site's magnet links. |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
@@ -87,6 +92,7 @@ Each field has these settings:
 - `Attribute`: read this attribute instead of the element's text. `href` and `src` values that point to the base server become relative paths; other links (e.g. `magnet:`) are returned exactly as written.
 - `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>` or `<b>Страна</b>: США, Япония<br>`. Several labels can be given as alternatives, separated by `|` (`"Страна|Выпущено"`). Latin letters that look like Cyrillic ones are treated as Cyrillic, so `Cубтитры` typed with a Latin `C` still matches `Субтитры`. If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
 - `Pattern`: regular expression applied to the value; the first capture group is returned (or the whole match), e.g. `\((\d{4})` (written `"\\((\\d{4})"` in JSON) takes `2018` from `Wildling (2018) BDRemux`.
+- `ItemLink`: the value is a link to an item page. It's returned relative to `WebLoad:Detail:PathPrefix`, ready for `get_item`.
 - `Multiple`: return every match as an array instead of only the first match.
 - `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
 
@@ -109,7 +115,9 @@ The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`,
 
 ## Viewing the server log
 
-The server writes its log to stderr, because stdout carries the MCP protocol. Where the log ends up depends on the client:
+The simplest way is to set `Logging:File:Path`, e.g. `"webload.log"` in `appsettings.json` or `Logging__File__Path=/tmp/webload.log` as an environment variable. The log is then written to that file, wherever the server runs.
+
+The server also writes its log to stderr, because stdout carries the MCP protocol. Where that output ends up depends on the client:
 
 - **MCP Inspector:** `npx @modelcontextprotocol/inspector dotnet run --project src/WebLoadMcp` opens a web UI where you can call the tools and see the stderr output.
 - **Claude Desktop:** each server gets its own log file, `mcp-server-<name>.log`. It's in `~/Library/Logs/Claude/` on macOS and `%APPDATA%\Claude\logs\` on Windows.

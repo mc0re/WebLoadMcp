@@ -11,25 +11,32 @@ public sealed class PageLoader
     public const string HttpClientName = "WebLoad";
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly PathResolver _resolver;
     private readonly PageParser _parser;
     private readonly ILogger<PageLoader> _logger;
 
-    public PageLoader(IHttpClientFactory httpClientFactory, PathResolver resolver, PageParser parser, ILogger<PageLoader> logger)
+    public PageLoader(IHttpClientFactory httpClientFactory, PageParser parser, ILogger<PageLoader> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _resolver = resolver;
         _parser = parser;
         _logger = logger;
     }
 
+    /// <summary>Loads a list page; <paramref name="path"/> is relative to the list prefix.</summary>
+    public Task<PageResult> LoadListAsync(string path, CancellationToken cancellationToken) =>
+        LoadAsync(_parser.ListPaths, path, _parser.ParseList, cancellationToken);
+
+    /// <summary>Loads an item page; <paramref name="path"/> is relative to the item prefix.</summary>
+    public Task<PageResult> LoadItemAsync(string path, CancellationToken cancellationToken) =>
+        LoadAsync(_parser.ItemPaths, path, _parser.ParseItem, cancellationToken);
+
     /// <remarks>
     /// Error messages mention only the relative path, never the base server's address.
     /// </remarks>
-    public async Task<PageResult> LoadAsync(string path, CancellationToken cancellationToken)
+    private async Task<PageResult> LoadAsync(
+        PathResolver resolver, string path, Func<string, Uri, PageResult> parse, CancellationToken cancellationToken)
     {
-        var uri = _resolver.Resolve(path);
-        var relativePath = _resolver.ToRelative(uri);
+        var uri = resolver.Resolve(path);
+        var relativePath = resolver.ToRelative(uri);
         _logger.LogInformation("Loading {Url}", uri);
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -63,7 +70,7 @@ public sealed class PageLoader
 
             // Follow redirects: parse relative to where the page actually came from.
             var finalUri = response.RequestMessage?.RequestUri ?? uri;
-            var result = _parser.Parse(html, finalUri);
+            var result = parse(html, finalUri);
             foreach (var warning in result.Warnings ?? [])
             {
                 _logger.LogWarning("{Url}: {Warning}", finalUri, warning);

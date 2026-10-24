@@ -11,16 +11,18 @@ public class PageParserTests
         BaseUrl = "https://example.com/site/",
         List = new ListPageOptions
         {
+            PathPrefix = "list/",
             ItemSelector = ".item",
             Fields = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["year"] = new() { Selector = ".year" },
                 ["title"] = new() { Selector = ".title" },
-                ["link"] = new() { Selector = "a[href]", Attribute = "href" },
+                ["link"] = new() { Selector = "a[href]", Attribute = "href", ItemLink = true },
             },
         },
         Detail = new DetailPageOptions
         {
+            PathPrefix = "items/",
             Fields = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["title"] = new() { Selector = "h1" },
@@ -43,9 +45,10 @@ public class PageParserTests
 
     private const string ListHtml = """
         <html><head><title>Archive</title></head><body>
-          <div class="item"><span class="year">2023</span> <a href="items/1"><span class="title">First
+          <div class="item"><span class="year">2023</span> <a href="/site/items/1"><span class="title">First
              one</span></a></div>
-          <div class="item"><span class="year">2024</span> <a href="/site/items/2"><span class="title">Second</span></a></div>
+          <div class="item"><span class="year">2024</span> <a href="../items/2"><span class="title">Second</span></a></div>
+          <div class="item"><span class="title">Not an item</span> <a href="/site/news/3">n</a></div>
           <div class="item"><span class="title">External</span> <a href="https://other.org/x">x</a></div>
         </body></html>
         """;
@@ -53,23 +56,26 @@ public class PageParserTests
     [Fact]
     public void ListPage_ReturnsItemsWithYearTitleAndRelativeLink()
     {
-        var result = Parser().Parse(ListHtml, new Uri("https://example.com/site/archive/"));
+        var result = Parser().ParseList(ListHtml, new Uri("https://example.com/site/list/archive"));
 
         Assert.Equal(PageKind.List, result.Kind);
-        Assert.Equal("archive/", result.Path);
+        Assert.Equal("archive", result.Path);
         Assert.Null(result.Item);
         Assert.NotNull(result.Items);
-        Assert.Equal(3, result.Items.Count);
+        Assert.Equal(4, result.Items.Count);
 
         Assert.Equal("2023", result.Items[0]["year"]);
         Assert.Equal("First one", result.Items[0]["title"]);
-        Assert.Equal("archive/items/1", result.Items[0]["link"]);
+        Assert.Equal("1", result.Items[0]["link"]);
 
         Assert.Equal("2024", result.Items[1]["year"]);
-        Assert.Equal("items/2", result.Items[1]["link"]);
+        Assert.Equal("2", result.Items[1]["link"]);
 
-        Assert.Null(result.Items[2]["year"]);
-        Assert.Equal("https://other.org/x", result.Items[2]["link"]);
+        // Links outside the item prefix stay relative to the base URL.
+        Assert.Equal("news/3", result.Items[2]["link"]);
+
+        Assert.Null(result.Items[3]["year"]);
+        Assert.Equal("https://other.org/x", result.Items[3]["link"]);
     }
 
     [Fact]
@@ -88,7 +94,7 @@ public class PageParserTests
             </body></html>
             """;
 
-        var result = Parser().Parse(html, new Uri("https://example.com/site/items/1"));
+        var result = Parser().ParseItem(html, new Uri("https://example.com/site/items/1"));
 
         Assert.Equal(PageKind.Item, result.Kind);
         Assert.Null(result.Items);
@@ -104,9 +110,19 @@ public class PageParserTests
     }
 
     [Fact]
+    public void ListPageWithoutRows_GivesEmptyList()
+    {
+        var result = Parser().ParseList("<html><body><h1>Nothing</h1></body></html>", new Uri("https://example.com/site/list/9"));
+
+        Assert.Equal(PageKind.List, result.Kind);
+        Assert.Equal("9", result.Path);
+        Assert.Empty(result.Items!);
+    }
+
+    [Fact]
     public void MissingListField_IsEmptyListAndMissingScalarIsNull()
     {
-        var result = Parser().Parse("<html><body><h1>Bare</h1></body></html>", new Uri("https://example.com/site/x"));
+        var result = Parser().ParseItem("<html><body><h1>Bare</h1></body></html>", new Uri("https://example.com/site/x"));
 
         Assert.Empty((IEnumerable<string>)result.Item!["genres"]!);
         Assert.Null(result.Item["size"]);
@@ -120,7 +136,7 @@ public class PageParserTests
     [InlineData("<b>Аудио 1:</b> Оригинал<br><b>Аудио 2:</b> Французский<br>", "", new[] { "French" }, new string[0])]
     public void LanguageFields(string audioHtml, string subtitlesHtml, string[] audio, string[] subtitles)
     {
-        var result = LanguageParser().Parse(
+        var result = LanguageParser().ParseItem(
             $"<html><body><b>Страна</b>: Франция, США<br>{audioHtml}{subtitlesHtml}</body></html>",
             new Uri("https://example.com/site/x"));
 
@@ -133,7 +149,7 @@ public class PageParserTests
     [InlineData("<b>Выпущено</b>: Some Studio<br>", new string[0], "Original")]
     public void CountryField_KeepsKnownCountriesAndDrivesOriginalLanguage(string countryHtml, string[] countries, string original)
     {
-        var result = LanguageParser().Parse(
+        var result = LanguageParser().ParseItem(
             $"<html><body>{countryHtml}<b>Аудио:</b> оригинал<br></body></html>",
             new Uri("https://example.com/site/x"));
 
@@ -145,9 +161,9 @@ public class PageParserTests
     public void UnknownCountriesAndLanguagesAreLogged()
     {
         var logger = new ListLogger<PageParser>();
-        LanguageParser(logger).Parse(
+        LanguageParser(logger).ParseItem(
             "<html><body><b>Выпущено</b>: Атлантида, США<br><b>Аудио 1:</b> Клингонский<br><b>Аудио 2:</b> Русский<br></body></html>",
-            new Uri("https://example.com/site/x"));
+            new Uri("https://example.com/site/items/x"));
 
         Assert.Equal(
             [
@@ -164,7 +180,7 @@ public class PageParserTests
     public void UnresolvedOriginalLanguageIsLogged(string countryHtml, string expected)
     {
         var logger = new ListLogger<PageParser>();
-        LanguageParser(logger).Parse($"<html><body>{countryHtml}<b>Аудио:</b> оригинал<br></body></html>", new Uri("https://example.com/site/x"));
+        LanguageParser(logger).ParseItem($"<html><body>{countryHtml}<b>Аудио:</b> оригинал<br></body></html>", new Uri("https://example.com/site/items/x"));
 
         Assert.Contains(expected, logger.Messages);
     }

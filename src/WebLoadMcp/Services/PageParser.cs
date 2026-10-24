@@ -19,6 +19,8 @@ public sealed class PageParser
     private readonly WebLoadOptions _options;
     private readonly ILogger<PageParser> _logger;
     private readonly PathResolver _resolver;
+    private readonly PathResolver _listResolver;
+    private readonly PathResolver _itemResolver;
     private readonly MagnetLinkRewriter _magnet;
     private readonly List<KeyValuePair<string, string>> _languageStems;
     private readonly Dictionary<string, string> _languageByCountry;
@@ -29,6 +31,8 @@ public sealed class PageParser
         _options = options;
         _logger = logger ?? NullLogger<PageParser>.Instance;
         _resolver = resolver;
+        _listResolver = resolver.WithPrefix(options.List.PathPrefix);
+        _itemResolver = resolver.WithPrefix(options.Detail.PathPrefix);
         _magnet = new MagnetLinkRewriter(options.Magnet);
 
         // Longest stems first, so a specific stem wins over a shorter one it starts with.
@@ -43,24 +47,35 @@ public sealed class PageParser
             .ToDictionary(g => g.Key, g => g.First().Language!, StringComparer.OrdinalIgnoreCase);
     }
 
-    public PageResult Parse(string html, Uri pageUri)
+    /// <summary>Resolves get_list paths (relative to the list prefix).</summary>
+    public PathResolver ListPaths => _listResolver;
+
+    /// <summary>Resolves get_item paths (relative to the item prefix).</summary>
+    public PathResolver ItemPaths => _itemResolver;
+
+    /// <summary>Parses a list page; a page without matching rows gives an empty list.</summary>
+    public PageResult ParseList(string html, Uri pageUri)
     {
         using var document = _htmlParser.ParseDocument(html);
-        var path = _resolver.ToRelative(pageUri) ?? pageUri.PathAndQuery;
+        var path = _listResolver.ToRelative(pageUri) ?? pageUri.PathAndQuery;
 
-        IReadOnlyList<IElement> listElements = string.IsNullOrWhiteSpace(_options.List.ItemSelector)
+        IReadOnlyList<IElement> rows = string.IsNullOrWhiteSpace(_options.List.ItemSelector)
             ? []
             : document.QuerySelectorAll(_options.List.ItemSelector);
 
-        if (listElements.Count > 0)
+        return new PageResult
         {
-            return new PageResult
-            {
-                Kind = PageKind.List,
-                Path = path,
-                Items = listElements.Select(e => ExtractFields(e, _options.List.Fields, pageUri, path)).ToList(),
-            };
-        }
+            Kind = PageKind.List,
+            Path = path,
+            Items = rows.Select(e => ExtractFields(e, _options.List.Fields, pageUri, path)).ToList(),
+        };
+    }
+
+    /// <summary>Parses an item page.</summary>
+    public PageResult ParseItem(string html, Uri pageUri)
+    {
+        using var document = _htmlParser.ParseDocument(html);
+        var path = _itemResolver.ToRelative(pageUri) ?? pageUri.PathAndQuery;
 
         var item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri, path);
         var warnings = new List<string>();
@@ -144,21 +159,21 @@ public sealed class PageParser
         }
 
         var value = element.GetAttribute(field.Attribute);
-        return IsUrlAttribute(field.Attribute) ? MakeLink(value, pageUri) : Normalize(value);
+        return IsUrlAttribute(field.Attribute) ? MakeLink(value, pageUri, field.ItemLink) : Normalize(value);
     }
 
     /// <summary>
-    /// Links to the base server are returned as relative paths, so they can be
-    /// passed straight back to the load tool; other links stay absolute.
+    /// Links to the base server are returned as relative paths (item links relative to the
+    /// item prefix, so they can be passed to get_item); other links stay absolute.
     /// </summary>
-    private string? MakeLink(string? value, Uri pageUri)
+    private string? MakeLink(string? value, Uri pageUri, bool itemLink)
     {
         if (string.IsNullOrWhiteSpace(value) || !Uri.TryCreate(pageUri, value.Trim(), out var target))
         {
             return Normalize(value);
         }
 
-        var relative = _resolver.ToRelative(target);
+        var relative = (itemLink ? _itemResolver.ToRelative(target) : null) ?? _resolver.ToRelative(target);
         if (relative is not null)
         {
             return relative;

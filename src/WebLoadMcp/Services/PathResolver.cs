@@ -24,6 +24,12 @@ public sealed class PathResolver
 
     public Uri BaseUri => _baseUri;
 
+    /// <summary>Returns a resolver for the sub-path <paramref name="prefix"/> (e.g. "browse/") of this one.</summary>
+    public PathResolver WithPrefix(string? prefix) =>
+        string.IsNullOrWhiteSpace(prefix)
+            ? this
+            : new PathResolver(new Uri(_baseUri, prefix.Trim().Trim('/') + "/").ToString());
+
     /// <summary>Converts a relative path into an absolute URL on the base server.</summary>
     /// <exception cref="ArgumentException">The path is absolute or escapes the base URL.</exception>
     public Uri Resolve(string? relativePath)

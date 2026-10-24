@@ -16,38 +16,54 @@ public class SampleDataTests
         .GetSection(WebLoadOptions.SectionName)
         .Get<WebLoadOptions>()!;
 
+    private static PageResult ParseList(string file, string path)
+    {
+        var parser = new PageParser(Options, new PathResolver(Options.BaseUrl));
+        return parser.ParseList(Read(file), parser.ListPaths.Resolve(path));
+    }
+
     private static PageResult Parse(string file, string path)
     {
-        var resolver = new PathResolver(Options.BaseUrl);
-        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "data", file));
-        return new PageParser(Options, resolver).Parse(html, resolver.Resolve(path));
+        var parser = new PageParser(Options, new PathResolver(Options.BaseUrl));
+        return parser.ParseItem(Read(file), parser.ItemPaths.Resolve(path));
+    }
+
+    private static string Read(string file) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "data", file));
+
+    [Fact]
+    public void PrefixesComeFromSettings()
+    {
+        var parser = new PageParser(Options, new PathResolver(Options.BaseUrl));
+
+        Assert.Equal("https://rutor.is/browse/1/0/0/0", parser.ListPaths.Resolve("1/0/0/0").ToString());
+        Assert.Equal("https://rutor.is/torrent/1045135/x", parser.ItemPaths.Resolve("1045135/x").ToString());
     }
 
     [Fact]
     public void ListPage()
     {
-        var result = Parse("list.html", "browse/113/1/0/0");
+        var result = ParseList("list.html", "113/1/0/0");
 
         Assert.Equal(PageKind.List, result.Kind);
-        Assert.Equal("browse/113/1/0/0", result.Path);
+        Assert.Equal("113/1/0/0", result.Path);
         Assert.Equal(100, result.Items!.Count);
 
         var first = result.Items[0];
         Assert.Equal("2018", first["year"]);
         Assert.Equal("Сага о чудовище. Сумерки / Wildling", first["title"]);
-        Assert.Equal("torrent/1045132/saga-o-chudoviwe-sumerki_wildling-2018-bdremux-1080p-d-p-l2-a", first["link"]);
+        Assert.Equal("1045132/saga-o-chudoviwe-sumerki_wildling-2018-bdremux-1080p-d-p-l2-a", first["link"]);
 
         Assert.All(result.Items, item =>
         {
             Assert.NotNull(item["title"]);
-            Assert.StartsWith("torrent/", (string)item["link"]!);
+            Assert.Matches(@"^\d+/[^/]+$", (string)item["link"]!);
         });
     }
 
     [Fact]
     public void ItemPage()
     {
-        var result = Parse("item.html", "torrent/1045135/tainstvennyj-poezd_mystery-train-1989-bdremux-1080p-p-a-l1");
+        var result = Parse("item.html", "1045135/tainstvennyj-poezd_mystery-train-1989-bdremux-1080p-p-a-l1");
 
         Assert.Equal(PageKind.Item, result.Kind);
         var item = result.Item!;
@@ -70,7 +86,7 @@ public class SampleDataTests
     [Fact]
     public void ItemPage2_ColonAfterLabelAndUnnamedAudioLanguage()
     {
-        var result = Parse("item2.html", "torrent/586668/s-menja-hvatit_enough-2002-web-dlrip-avc-ot-domino-d");
+        var result = Parse("item2.html", "586668/s-menja-hvatit_enough-2002-web-dlrip-avc-ot-domino-d");
 
         Assert.Equal(PageKind.Item, result.Kind);
         var item = result.Item!;
@@ -92,7 +108,7 @@ public class SampleDataTests
     [Fact]
     public void ItemPage3_LatinLetterInLabelAndSoundInsteadOfAudio()
     {
-        var result = Parse("item3.html", "torrent/1/x");
+        var result = Parse("item3.html", "1/x");
 
         var item = result.Item!;
         Assert.Equal("Неукротимый / Frantic", item["title"]);
@@ -111,7 +127,7 @@ public class SampleDataTests
     [Fact]
     public void ItemPage4_BracketsInTitleAndMusicOnlyAudio()
     {
-        var result = Parse("item4.html", "torrent/1/x");
+        var result = Parse("item4.html", "1/x");
 
         var item = result.Item!;
         Assert.Equal("Бродяга-музыкант (Скиталец) / The Vagabond", item["title"]);

@@ -64,6 +64,9 @@ public sealed class MagnetOptions
 
 public sealed class ListPageOptions
 {
+    /// <summary>Path of list pages under the base URL (e.g. "browse/"); get_list paths are relative to it.</summary>
+    public string? PathPrefix { get; set; }
+
     /// <summary>
     /// CSS selector matching each item on a list page.
     /// A page where this selector matches nothing is treated as a single (detail) item.
@@ -76,6 +79,9 @@ public sealed class ListPageOptions
 
 public sealed class DetailPageOptions
 {
+    /// <summary>Path of item pages under the base URL (e.g. "torrent/"); get_item paths are relative to it.</summary>
+    public string? PathPrefix { get; set; }
+
     /// <summary>Fields extracted from a detail page, relative to the document.</summary>
     public Dictionary<string, FieldOptions> Fields { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
@@ -101,6 +107,12 @@ public sealed class FieldOptions
     /// otherwise the whole match. No match gives an empty value.
     /// </summary>
     public string? Pattern { get; set; }
+
+    /// <summary>
+    /// The value is a link to an item page: return it relative to <see cref="DetailPageOptions.PathPrefix"/>,
+    /// so it can be passed to get_item as is.
+    /// </summary>
+    public bool ItemLink { get; set; }
 
     /// <summary>Return all matches as an array instead of only the first one.</summary>
     public bool Multiple { get; set; }
