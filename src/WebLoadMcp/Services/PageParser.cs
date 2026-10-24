@@ -265,8 +265,36 @@ public sealed class PageParser
     private static bool HasLabel(IElement element, string label)
     {
         var text = Normalize(element.TextContent)?.TrimEnd(':', ' ');
-        return text is not null && label.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Any(l => text.StartsWith(l, StringComparison.OrdinalIgnoreCase));
+        if (text is null)
+        {
+            return false;
+        }
+
+        text = FoldLookalikes(text);
+        return label.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Any(l => text.StartsWith(FoldLookalikes(l), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Replaces Latin letters that look like Cyrillic ones (as in "Cубтитры" typed with a Latin C)
+    /// with their Cyrillic twins, so that such labels still match.
+    /// </summary>
+    private static string FoldLookalikes(string text)
+    {
+        const string latin = "AaBCcEeHKMOoPpTXxy";
+        const string cyrillic = "АаВСсЕеНКМОоРрТХху";
+
+        var chars = text.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            var index = latin.IndexOf(chars[i]);
+            if (index >= 0)
+            {
+                chars[i] = cyrillic[index];
+            }
+        }
+
+        return new string(chars);
     }
 
     /// <summary>

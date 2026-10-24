@@ -90,6 +90,43 @@ public class SampleDataTests
     }
 
     [Fact]
+    public void ItemPage3_LatinLetterInLabelAndSoundInsteadOfAudio()
+    {
+        var result = Parse("item3.html", "torrent/1/x");
+
+        var item = result.Item!;
+        Assert.Equal("Неукротимый / Frantic", item["title"]);
+        Assert.Equal("1988", item["year"]);
+        Assert.Equal(["United States", "France"], (IEnumerable<string>)item["country"]!);
+        Assert.StartsWith("Врач Ричард Уолкер", (string)item["description"]!);
+        Assert.Equal(["триллер", "драма", "криминал", "детектив"], (IEnumerable<string>)item["genres"]!);
+        Assert.Equal(["Russian"], (IEnumerable<string>)item["audio"]!);
+        Assert.Empty((IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("2.88 GB", item["size"]);
+        Assert.Equal("https://i5.imageban.ru/out/2023/01/26/c81d29365c7ac51733fca5a091879af1.jpeg", item["image"]);
+        Assert.EndsWith("&dn=" + Uri.EscapeDataString("Неукротимый / Frantic (1988)"), (string)item["reference"]!);
+        Assert.Null(result.Warnings);
+    }
+
+    [Fact]
+    public void ItemPage4_BracketsInTitleAndMusicOnlyAudio()
+    {
+        var result = Parse("item4.html", "torrent/1/x");
+
+        var item = result.Item!;
+        Assert.Equal("Бродяга-музыкант (Скиталец) / The Vagabond", item["title"]);
+        Assert.Equal("1916", item["year"]);
+        Assert.Equal(["United States"], (IEnumerable<string>)item["country"]!);
+        Assert.StartsWith("Странствующий музыкант", (string)item["description"]!);
+        Assert.Equal(["Комедия", "немой"], (IEnumerable<string>)item["genres"]!);
+        Assert.Empty((IEnumerable<string>)item["audio"]!);
+        Assert.Empty((IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal("268.64 MB", item["size"]);
+        Assert.Equal("https://i125.fastpic.org/big/2025/0709/c9/5ae8c13b13d42346ab8a0627161e78c9.jpg", item["image"]);
+        Assert.Null(result.Warnings);
+    }
+
+    [Fact]
     public void NoLanguageStemsBindAsEmpty() =>
         Assert.Equal("", Options.Languages["нет"]);
 }

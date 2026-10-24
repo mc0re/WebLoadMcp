@@ -85,7 +85,7 @@ Each field has these settings:
 
 - `Selector`: CSS selector, evaluated inside the list item (for list pages) or the whole document (for item pages).
 - `Attribute`: read this attribute instead of the element's text. `href` and `src` values that point to the base server become relative paths; other links (e.g. `magnet:`) are returned exactly as written.
-- `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>` or `<b>Страна</b>: США, Япония<br>`. Several labels can be given as alternatives, separated by `|` (`"Страна|Выпущено"`). If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
+- `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>` or `<b>Страна</b>: США, Япония<br>`. Several labels can be given as alternatives, separated by `|` (`"Страна|Выпущено"`). Latin letters that look like Cyrillic ones are treated as Cyrillic, so `Cубтитры` typed with a Latin `C` still matches `Субтитры`. If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
 - `Pattern`: regular expression applied to the value; the first capture group is returned (or the whole match), e.g. `\((\d{4})` (written `"\\((\\d{4})"` in JSON) takes `2018` from `Wildling (2018) BDRemux`.
 - `Multiple`: return every match as an array instead of only the first match.
 - `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
@@ -105,7 +105,16 @@ Values that don't match are written to the server log (stderr) at Information le
 - values that name no known language, which fall back to `Default`;
 - original-language tracks whose country, or its language, is unknown.
 
-The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html`, `item2.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
+The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html` to `item4.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
+
+## Viewing the server log
+
+The server writes its log to stderr, because stdout carries the MCP protocol. Where the log ends up depends on the client:
+
+- **MCP Inspector:** `npx @modelcontextprotocol/inspector dotnet run --project src/WebLoadMcp` opens a web UI where you can call the tools and see the stderr output.
+- **Claude Desktop:** each server gets its own log file, `mcp-server-<name>.log`. It's in `~/Library/Logs/Claude/` on macOS and `%APPDATA%\Claude\logs\` on Windows.
+- **Claude Code:** start it with `claude --debug` to see MCP server output.
+- **Directly:** run `dotnet run --project src/WebLoadMcp 2> webload.log` and paste JSON-RPC messages into it.
 
 ## Build and test
 
