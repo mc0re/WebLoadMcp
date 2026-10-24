@@ -31,6 +31,7 @@ If the selector matches nothing, the page is a single **item**, and the fields c
   "path": "archive/items/1",
   "item": {
     "title": "First",
+    "year": "2023",
     "country": "Denmark",
     "description": "Details here.",
     "genres": ["Drama", "Comedy"],
@@ -38,10 +39,20 @@ If the selector matches nothing, the page is a single **item**, and the fields c
     "subtitles": ["English"],
     "size": "1.4 GB",
     "image": "https://images.example.org/poster.jpg",
-    "reference": "magnet:?xt=urn:btih:..."
+    "reference": "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=First%20%282023%29"
   }
 }
 ```
+
+A `warnings` array is added when something looks off, e.g. a magnet link whose trackers differ from the configured ones. The warnings are also written to the server log.
+
+#### Magnet links
+
+When the `reference` field holds a magnet link, it is rewritten:
+
+- `dn` (display name) is replaced with `title (year)`, built from the item's own fields, or just `title` when there is no year.
+- `tr` (trackers) are removed. The site's trackers are listed in `WebLoad:Magnet:Trackers` instead, so they can be added back when the link is used. If a page's trackers differ from that list, a warning names the missing and extra ones.
+- Other parameters, such as `xt` (the info-hash), are kept as they are.
 
 ### `ready()`
 
@@ -57,7 +68,9 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 | `WebLoad:TimeoutSeconds`, `WebLoad:UserAgent` | HTTP client settings. |
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
-| `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
+| `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `year`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
+| `WebLoad:Magnet:Field` | Item field holding the magnet link to rewrite (default `reference`; empty turns the rewrite off). |
+| `WebLoad:Magnet:Trackers` | Trackers expected in the site's magnet links. |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
 | `Ready:GeoIpUrl` | JSON geo-IP endpoint (default `https://ipinfo.io/json`). |
 | `Ready:CountryProperty` | JSON property that holds the country code (default `country`). |

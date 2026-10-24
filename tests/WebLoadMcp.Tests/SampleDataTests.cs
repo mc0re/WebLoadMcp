@@ -52,8 +52,8 @@ public class SampleDataTests
         Assert.Equal(PageKind.Item, result.Kind);
         var item = result.Item!;
         Assert.Equal("Таинственный поезд / Mystery Train", item["title"]);
-        // The saved sample has the poster rewritten to a local file; the live page points to the real image.
-        Assert.EndsWith("/5f873b2115fe9d96b2e43712319e004c.jpg", (string)item["image"]!);
+        Assert.Equal("1989", item["year"]);
+        Assert.Equal("https://i8.imageban.ru/out/2025/07/10/5f873b2115fe9d96b2e43712319e004c.jpg", item["image"]);
         Assert.Equal("США, Япония", item["country"]);
         Assert.StartsWith("Трилогия о событиях", (string)item["description"]!);
         Assert.EndsWith("самого Элвиса.....", (string)item["description"]!);
@@ -68,6 +68,9 @@ public class SampleDataTests
             (IEnumerable<string>)item["audio"]!);
         Assert.Equal(["Русские", "английские"], (IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("28.35 GB", item["size"]);
-        Assert.StartsWith("magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=rutor.info_%D0%A2", (string)item["reference"]!);
+        Assert.Equal(
+            "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=" + Uri.EscapeDataString("Таинственный поезд / Mystery Train (1989)"),
+            item["reference"]);
+        Assert.Null(result.Warnings);
     }
 }

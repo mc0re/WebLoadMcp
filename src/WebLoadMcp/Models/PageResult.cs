@@ -25,4 +25,8 @@ public sealed class PageResult
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, object?>? Item { get; init; }
+
+    /// <summary>Problems noticed while parsing, e.g. unexpected magnet trackers.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Warnings { get; init; }
 }

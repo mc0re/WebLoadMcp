@@ -14,12 +14,14 @@ public sealed class PageParser
 {
     private readonly WebLoadOptions _options;
     private readonly PathResolver _resolver;
+    private readonly MagnetLinkRewriter _magnet;
     private readonly HtmlParser _htmlParser = new();
 
     public PageParser(WebLoadOptions options, PathResolver resolver)
     {
         _options = options;
         _resolver = resolver;
+        _magnet = new MagnetLinkRewriter(options.Magnet);
     }
 
     public PageResult Parse(string html, Uri pageUri)
@@ -41,11 +43,16 @@ public sealed class PageParser
             };
         }
 
+        var item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri);
+        var warnings = new List<string>();
+        _magnet.Rewrite(item, warnings);
+
         return new PageResult
         {
             Kind = PageKind.Item,
             Path = path,
-            Item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri),
+            Item = item,
+            Warnings = warnings.Count > 0 ? warnings : null,
         };
     }
 

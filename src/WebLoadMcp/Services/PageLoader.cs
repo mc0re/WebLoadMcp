@@ -63,7 +63,13 @@ public sealed class PageLoader
 
             // Follow redirects: parse relative to where the page actually came from.
             var finalUri = response.RequestMessage?.RequestUri ?? uri;
-            return _parser.Parse(html, finalUri);
+            var result = _parser.Parse(html, finalUri);
+            foreach (var warning in result.Warnings ?? [])
+            {
+                _logger.LogWarning("{Url}: {Warning}", finalUri, warning);
+            }
+
+            return result;
         }
     }
 }

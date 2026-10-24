@@ -18,6 +18,23 @@ public sealed class WebLoadOptions
     public ListPageOptions List { get; set; } = new();
 
     public DetailPageOptions Detail { get; set; } = new();
+
+    public MagnetOptions Magnet { get; set; } = new();
+}
+
+/// <summary>
+/// How magnet links on item pages are rewritten (see <c>MagnetLinkRewriter</c>).
+/// </summary>
+public sealed class MagnetOptions
+{
+    /// <summary>Item field holding the magnet link. Empty disables the rewrite.</summary>
+    public string? Field { get; set; } = "reference";
+
+    /// <summary>
+    /// Trackers expected in the site's magnet links. They are removed from the returned link;
+    /// a page whose trackers differ produces a warning.
+    /// </summary>
+    public List<string> Trackers { get; set; } = [];
 }
 
 public sealed class ListPageOptions
