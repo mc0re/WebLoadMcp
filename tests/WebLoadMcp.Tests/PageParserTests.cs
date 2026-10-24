@@ -113,25 +113,56 @@ public class PageParserTests
     }
 
     [Theory]
-    [InlineData("<b>Аудио:</b> AC3, 6 ch<br>", "<b>Субтитры</b>: нет<br>", new[] { "Русский" }, new string[0])]
-    [InlineData("<b>Аудио 1:</b> Английский AC3<br><b>Аудио 2:</b> AC3 - Оригинальная дорожка<br>", "<b>Субтитры:</b> English, рус.<br>", new[] { "Английский", "Оригинал" }, new[] { "Английский", "Русский" })]
+    [InlineData("<b>Аудио:</b> AC3, 6 ch<br>", "<b>Субтитры</b>: нет<br>", new[] { "Russian" }, new string[0])]
+    [InlineData("<b>Аудио 1:</b> Английский AC3<br><b>Аудио 2:</b> AC3, rus<br>", "<b>Субтитры:</b> English, рус.<br>", new[] { "English", "Russian" }, new[] { "English", "Russian" })]
+    [InlineData("<b>Аудио:</b> AC3 perfect normal final<br>", "", new[] { "Russian" }, new string[0])]
+    [InlineData("<b>Аудио 1:</b> Русский<br><b>Аудио 2:</b> Оригинальная дорожка<br>", "", new[] { "Russian", "French" }, new string[0])]
+    [InlineData("<b>Аудио 1:</b> Оригинал<br><b>Аудио 2:</b> Французский<br>", "", new[] { "French" }, new string[0])]
     public void LanguageFields(string audioHtml, string subtitlesHtml, string[] audio, string[] subtitles)
+    {
+        var result = LanguageParser().Parse(
+            $"<html><body><b>Страна</b>: Франция, США<br>{audioHtml}{subtitlesHtml}</body></html>",
+            new Uri("https://example.com/site/x"));
+
+        Assert.Equal(audio, (IEnumerable<string>)result.Item!["audio"]!);
+        Assert.Equal(subtitles, (IEnumerable<string>)result.Item["subtitles"]!);
+    }
+
+    [Theory]
+    [InlineData("<b>Выпущено</b>: США, Columbia Pictures, Великобритания<br>", new[] { "United States", "United Kingdom" }, "English")]
+    [InlineData("<b>Выпущено</b>: Some Studio<br>", new string[0], "Original")]
+    public void CountryField_KeepsKnownCountriesAndDrivesOriginalLanguage(string countryHtml, string[] countries, string original)
+    {
+        var result = LanguageParser().Parse(
+            $"<html><body>{countryHtml}<b>Аудио:</b> оригинал<br></body></html>",
+            new Uri("https://example.com/site/x"));
+
+        Assert.Equal(countries, (IEnumerable<string>)result.Item!["country"]!);
+        Assert.Equal([original], (IEnumerable<string>)result.Item["audio"]!);
+    }
+
+    private static PageParser LanguageParser()
     {
         var options = Options();
         options.Detail.Fields = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["audio"] = new() { Selector = "b", Label = "Аудио", Multiple = true, Language = true, Default = "Русский", Distinct = true },
-            ["subtitles"] = new() { Selector = "b", Label = "Субтитры", Separator = ",", Language = true, Default = "Русский", Distinct = true },
+            ["country"] = new() { Selector = "b", Label = "Страна|Выпущено", Separator = ",", Country = true, Distinct = true },
+            ["audio"] = new() { Selector = "b", Label = "Аудио", Multiple = true, Language = true, Default = "Russian", Distinct = true },
+            ["subtitles"] = new() { Selector = "b", Label = "Субтитры", Separator = ",", Language = true, Default = "Russian", Distinct = true },
         };
         options.Languages = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["рус"] = "Русский", ["англ"] = "Английский", ["eng"] = "Английский", ["оригинал"] = "Оригинал", ["нет"] = "",
+            ["русск"] = "Russian", ["рус"] = "Russian", ["rus"] = "Russian",
+            ["англ"] = "English", ["english"] = "English", ["eng"] = "English",
+            ["франц"] = "French", ["per"] = "Persian", ["nor"] = "Norwegian", ["fin"] = "Finnish",
+            ["оригинал"] = WebLoadOptions.OriginalLanguage, ["нет"] = "",
         };
-
-        var result = new PageParser(options, new PathResolver(options.BaseUrl))
-            .Parse($"<html><body>{audioHtml}{subtitlesHtml}</body></html>", new Uri("https://example.com/site/x"));
-
-        Assert.Equal(audio, (IEnumerable<string>)result.Item!["audio"]!);
-        Assert.Equal(subtitles, (IEnumerable<string>)result.Item["subtitles"]!);
+        options.Countries = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["США"] = new() { Name = "United States", Language = "English" },
+            ["Великобритания"] = new() { Name = "United Kingdom", Language = "English" },
+            ["Франция"] = new() { Name = "France", Language = "French" },
+        };
+        return new PageParser(options, new PathResolver(options.BaseUrl));
     }
 }

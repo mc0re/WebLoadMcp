@@ -32,11 +32,11 @@ If the selector matches nothing, the page is a single **item**, and the fields c
   "item": {
     "title": "First",
     "year": "2023",
-    "country": "Denmark",
+    "country": ["United States", "Japan"],
     "description": "Details here.",
     "genres": ["Drama", "Comedy"],
-    "audio": ["Русский", "Английский"],
-    "subtitles": ["Русский"],
+    "audio": ["Russian", "English"],
+    "subtitles": ["Russian"],
     "size": "1.4 GB",
     "image": "https://images.example.org/poster.jpg",
     "reference": "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=First%20%282023%29"
@@ -69,7 +69,8 @@ Settings are in `src/WebLoadMcp/appsettings.json`. You can override any of them 
 | `WebLoad:List:ItemSelector` | CSS selector for each item on a list page. |
 | `WebLoad:List:Fields` | Fields read from each list item (default: `year`, `title`, `link`). |
 | `WebLoad:Detail:Fields` | Fields read from a single-item page (default: `title`, `year`, `country`, `description`, `genres[]`, `audio[]`, `subtitles[]`, `size`, `image`, `reference`). |
-| `WebLoad:Languages` | Language names by word stem, used by `Language` fields (`audio`, `subtitles`). |
+| `WebLoad:Languages` | English language names by word stem, used by `Language` fields (`audio`, `subtitles`). |
+| `WebLoad:Countries` | Country names as written on the site, each with `Name` (English) and `Language` (the country's main film language). Used by the `country` field and to resolve original-language tracks. |
 | `WebLoad:Magnet:Field` | Item field holding the magnet link to rewrite (default `reference`; empty turns the rewrite off). |
 | `WebLoad:Magnet:Trackers` | Trackers expected in the site's magnet links. |
 | `Ready:Country` | ISO 3166-1 alpha-2 code, e.g. `DK`. |
@@ -89,8 +90,11 @@ Each field has these settings:
 - `Multiple`: return every match as an array instead of only the first match.
 - `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
 
-- `Language`: replace each value with the language it names, looked up in `WebLoad:Languages` (word stem → name, e.g. `"рус": "Русский"`, `"eng": "Английский"`). A value that names no language becomes `Default`. A stem mapped to `""` (e.g. `"нет"`) means "none", and the value is dropped.
-- `Default`: the value used when `Language` finds no language name. It's `Русский` for audio and subtitles.
+- `Country`: keep only values that are known countries in `WebLoad:Countries`, replaced by their English names. Anything else, such as a studio in `Выпущено: США, Columbia Pictures`, is dropped.
+- `Language`: replace each value with the English name of the language it mentions, found through `WebLoad:Languages` (word stem → name, e.g. `"русск": "Russian"`, `"eng": "English"`). Stems longer than three letters match the start of a word (`англ` matches `Английский`). Stems of three letters or fewer must match a whole word (`rus`, `рус.`), so `per` doesn't match `performance`. Two special values:
+  - A stem mapped to `""` (e.g. `"нет"`) means "none", and the value is dropped.
+  - A stem mapped to `"@original"` (e.g. `"оригинал"`) means the original-language track. It becomes the language of the first production country, from `WebLoad:Countries`, or `Original` if that's unknown.
+- `Default`: the value used when `Language` finds no language name. It's `Russian` for audio and subtitles.
 - `Distinct`: remove duplicates from a list field.
 
 A list field with no matches is `[]`. A single-value field with no match is `null`.

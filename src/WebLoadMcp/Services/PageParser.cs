@@ -12,10 +12,13 @@ namespace WebLoadMcp.Services;
 /// </summary>
 public sealed class PageParser
 {
+    private const int MaxWholeWordStem = 3;
+
     private readonly WebLoadOptions _options;
     private readonly PathResolver _resolver;
     private readonly MagnetLinkRewriter _magnet;
     private readonly List<KeyValuePair<string, string>> _languageStems;
+    private readonly Dictionary<string, string> _languageByCountry;
     private readonly HtmlParser _htmlParser = new();
 
     public PageParser(WebLoadOptions options, PathResolver resolver)
@@ -29,6 +32,11 @@ public sealed class PageParser
             .Where(p => !string.IsNullOrWhiteSpace(p.Key))
             .OrderByDescending(p => p.Key.Length)
             .ToList();
+
+        _languageByCountry = options.Countries.Values
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name) && !string.IsNullOrWhiteSpace(c.Language))
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Language!, StringComparer.OrdinalIgnoreCase);
     }
 
     public PageResult Parse(string html, Uri pageUri)
@@ -82,17 +90,37 @@ public sealed class PageParser
             if (field.IsList)
             {
                 var list = values.SelectMany(v => Split(v, field.Separator));
+                if (field.Country)
+                {
+                    list = list.Select(ToCountry).OfType<string>();
+                }
+
                 if (field.Language)
                 {
                     list = list.Select(v => ToLanguage(v, field.Default)).OfType<string>().Where(v => v.Length > 0);
                 }
 
-                result[name] = (field.Distinct ? list.Distinct(StringComparer.OrdinalIgnoreCase) : list).ToList();
+                result[name] = list.ToList();
             }
             else
             {
                 var value = values.FirstOrDefault();
+                if (field.Country)
+                {
+                    value = value is null ? null : ToCountry(value);
+                }
+
                 result[name] = field.Language ? ToLanguage(value, field.Default) : value;
+            }
+        }
+
+        ResolveOriginalLanguage(result, fields);
+
+        foreach (var (name, field) in fields)
+        {
+            if (field.Distinct && result.GetValueOrDefault(name) is List<string> list)
+            {
+                result[name] = list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             }
         }
 
@@ -140,6 +168,8 @@ public sealed class PageParser
     /// Finds the language named in <paramref name="value"/>: the first word that starts with
     /// one of the configured language stems. Returns <paramref name="defaultLanguage"/> when no
     /// language is named, and an empty string for stems mapped to "" (e.g. "нет").
+    /// Short stems (codes like "eng", abbreviations like "рус") must match a whole word,
+    /// so that e.g. "per" does not match "performance".
     /// </summary>
     private string? ToLanguage(string? value, string? defaultLanguage)
     {
@@ -152,7 +182,10 @@ public sealed class PageParser
         {
             foreach (var (stem, language) in _languageStems)
             {
-                if (word.StartsWith(stem, StringComparison.OrdinalIgnoreCase))
+                var matches = stem.Length <= MaxWholeWordStem
+                    ? word.Equals(stem, StringComparison.OrdinalIgnoreCase)
+                    : word.StartsWith(stem, StringComparison.OrdinalIgnoreCase);
+                if (matches)
                 {
                     return language;
                 }
@@ -160,6 +193,41 @@ public sealed class PageParser
         }
 
         return defaultLanguage;
+    }
+
+    /// <summary>Maps a country name as written on the site to its configured name, or <c>null</c> if it is not a known country.</summary>
+    private string? ToCountry(string value) =>
+        _options.Countries.TryGetValue(value.Trim(), out var country) && !string.IsNullOrWhiteSpace(country.Name)
+            ? country.Name
+            : null;
+
+    /// <summary>
+    /// Replaces <see cref="WebLoadOptions.OriginalLanguage"/> in language fields with the language of the
+    /// first production country, or with "Original" when that country's language is not known.
+    /// </summary>
+    private void ResolveOriginalLanguage(Dictionary<string, object?> item, Dictionary<string, FieldOptions> fields)
+    {
+        var firstCountry = fields
+            .Where(f => f.Value.Country)
+            .Select(f => item.GetValueOrDefault(f.Key))
+            .Select(v => v is List<string> list ? list.FirstOrDefault() : v as string)
+            .FirstOrDefault(c => c is not null);
+        var original = firstCountry is not null && _languageByCountry.TryGetValue(firstCountry, out var language)
+            ? language
+            : "Original";
+
+        foreach (var (name, field) in fields.Where(f => f.Value.Language))
+        {
+            switch (item.GetValueOrDefault(name))
+            {
+                case List<string> list:
+                    item[name] = list.Select(v => v == WebLoadOptions.OriginalLanguage ? original : v).ToList();
+                    break;
+                case WebLoadOptions.OriginalLanguage:
+                    item[name] = original;
+                    break;
+            }
+        }
     }
 
     /// <summary>Checks the element's text against the label, or against any of several labels separated by '|'.</summary>

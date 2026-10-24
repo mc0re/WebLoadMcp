@@ -21,11 +21,30 @@ public sealed class WebLoadOptions
 
     public MagnetOptions Magnet { get; set; } = new();
 
+    /// <summary>Language value standing for "the original language of the production country".</summary>
+    public const string OriginalLanguage = "@original";
+
     /// <summary>
-    /// Language names by word stem (e.g. "рус" → "Русский", "eng" → "Английский"), used by fields
-    /// with <see cref="FieldOptions.Language"/>. A stem mapped to "" means "no language" (e.g. "нет").
+    /// Language names by word stem (e.g. "рус" → "Russian", "eng" → "English"), used by fields
+    /// with <see cref="FieldOptions.Language"/>. A stem mapped to "" means "no language" (e.g. "нет"),
+    /// and one mapped to <see cref="OriginalLanguage"/> means the production country's language.
     /// </summary>
     public Dictionary<string, string> Languages { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Known countries by the name used on the site (e.g. "США"), used by fields with
+    /// <see cref="FieldOptions.Country"/>.
+    /// </summary>
+    public Dictionary<string, CountryOptions> Countries { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CountryOptions
+{
+    /// <summary>Name returned for the country (e.g. "United States").</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Main language of the country's films, used for original-language tracks.</summary>
+    public string? Language { get; set; }
 }
 
 /// <summary>
@@ -97,6 +116,12 @@ public sealed class FieldOptions
     /// or with <see cref="Default"/> when it names none.
     /// </summary>
     public bool Language { get; set; }
+
+    /// <summary>
+    /// Keep only values that are known countries (see <see cref="WebLoadOptions.Countries"/>),
+    /// replaced by their configured names. Other values (e.g. studio names) are dropped.
+    /// </summary>
+    public bool Country { get; set; }
 
     /// <summary>Value used when <see cref="Language"/> finds no language name.</summary>
     public string? Default { get; set; }

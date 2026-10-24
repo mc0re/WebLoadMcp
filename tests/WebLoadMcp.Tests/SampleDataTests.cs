@@ -54,12 +54,12 @@ public class SampleDataTests
         Assert.Equal("Таинственный поезд / Mystery Train", item["title"]);
         Assert.Equal("1989", item["year"]);
         Assert.Equal("https://i8.imageban.ru/out/2025/07/10/5f873b2115fe9d96b2e43712319e004c.jpg", item["image"]);
-        Assert.Equal("США, Япония", item["country"]);
+        Assert.Equal(["United States", "Japan"], (IEnumerable<string>)item["country"]!);
         Assert.StartsWith("Трилогия о событиях", (string)item["description"]!);
         Assert.EndsWith("самого Элвиса.....", (string)item["description"]!);
         Assert.Equal(["Комедия", "драма"], (IEnumerable<string>)item["genres"]!);
-        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["audio"]!);
-        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal(["Russian", "English"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["Russian", "English"], (IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("28.35 GB", item["size"]);
         Assert.Equal(
             "magnet:?xt=urn:btih:73e4ebea578584f332dbf64fb1c302b57210b1c4&dn=" + Uri.EscapeDataString("Таинственный поезд / Mystery Train (1989)"),
@@ -76,12 +76,12 @@ public class SampleDataTests
         var item = result.Item!;
         Assert.Equal("С меня хватит / Enough", item["title"]);
         Assert.Equal("2002", item["year"]);
-        Assert.Equal("США, Columbia Pictures Corporation, Winkler Films", item["country"]);
+        Assert.Equal(["United States"], (IEnumerable<string>)item["country"]!);
         Assert.StartsWith("Жизнь официантки Слим", (string)item["description"]!);
         Assert.EndsWith("что с нее довольно.", (string)item["description"]!);
         Assert.Equal(["Триллер", "драма"], (IEnumerable<string>)item["genres"]!);
-        Assert.Equal(["Русский"], (IEnumerable<string>)item["audio"]!);
-        Assert.Equal(["Русский", "Английский"], (IEnumerable<string>)item["subtitles"]!);
+        Assert.Equal(["Russian"], (IEnumerable<string>)item["audio"]!);
+        Assert.Equal(["Russian", "English"], (IEnumerable<string>)item["subtitles"]!);
         Assert.Equal("2.98 GB", item["size"]);
         Assert.EndsWith("/9a2bf4c70684b77b702360622cab0900.png", (string)item["image"]!);
         Assert.StartsWith("magnet:?xt=urn:btih:", (string)item["reference"]!);
