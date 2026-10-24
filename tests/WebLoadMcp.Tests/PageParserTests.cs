@@ -57,7 +57,6 @@ public class PageParserTests
 
         Assert.Equal(PageKind.List, result.Kind);
         Assert.Equal("archive/", result.Path);
-        Assert.Equal("Archive", result.Title);
         Assert.Null(result.Item);
         Assert.NotNull(result.Items);
         Assert.Equal(3, result.Items.Count);

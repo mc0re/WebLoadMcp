@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using WebLoadMcp.Configuration;
@@ -24,7 +26,6 @@ public sealed class PageParser
     {
         using var document = _htmlParser.ParseDocument(html);
         var path = _resolver.ToRelative(pageUri) ?? pageUri.PathAndQuery;
-        var title = Normalize(document.Title);
 
         IReadOnlyList<IElement> listElements = string.IsNullOrWhiteSpace(_options.List.ItemSelector)
             ? []
@@ -36,7 +37,6 @@ public sealed class PageParser
             {
                 Kind = PageKind.List,
                 Path = path,
-                Title = title,
                 Items = listElements.Select(e => ExtractFields(e, _options.List.Fields, pageUri)).ToList(),
             };
         }
@@ -45,7 +45,6 @@ public sealed class PageParser
         {
             Kind = PageKind.Item,
             Path = path,
-            Title = title,
             Item = ExtractFields(document.DocumentElement, _options.Detail.Fields, pageUri),
         };
     }
@@ -61,22 +60,14 @@ public sealed class PageParser
                 continue;
             }
 
-            if (field.IsList)
-            {
-                IEnumerable<IElement> elements = field.Multiple
-                    ? scope.QuerySelectorAll(field.Selector)
-                    : scope.QuerySelector(field.Selector) is { } first ? [first] : [];
+            var elements = scope.QuerySelectorAll(field.Selector)
+                .Where(e => string.IsNullOrEmpty(field.Label) || HasLabel(e, field.Label));
+            var values = (field.Multiple ? elements : elements.Take(1))
+                .Select(e => ApplyPattern(ReadValue(e, field, pageUri), field.Pattern));
 
-                result[name] = elements
-                    .Select(e => ReadValue(e, field, pageUri))
-                    .SelectMany(v => Split(v, field.Separator))
-                    .ToList();
-            }
-            else
-            {
-                var element = scope.QuerySelector(field.Selector);
-                result[name] = element is null ? null : ReadValue(element, field, pageUri);
-            }
+            result[name] = field.IsList
+                ? values.SelectMany(v => Split(v, field.Separator)).ToList()
+                : values.FirstOrDefault();
         }
 
         return result;
@@ -84,6 +75,11 @@ public sealed class PageParser
 
     private string? ReadValue(IElement element, FieldOptions field, Uri pageUri)
     {
+        if (!string.IsNullOrEmpty(field.Label))
+        {
+            return TextAfterLabel(element, field.Selector);
+        }
+
         if (string.IsNullOrEmpty(field.Attribute))
         {
             return Normalize(GetText(element));
@@ -104,7 +100,83 @@ public sealed class PageParser
             return Normalize(value);
         }
 
-        return _resolver.ToRelative(target) ?? target.ToString();
+        var relative = _resolver.ToRelative(target);
+        if (relative is not null)
+        {
+            return relative;
+        }
+
+        // Keep absolute links exactly as written (e.g. magnet links with encoded parameters).
+        return Uri.TryCreate(value.Trim(), UriKind.Absolute, out _) ? value.Trim() : target.ToString();
+    }
+
+    private static bool HasLabel(IElement element, string label) =>
+        Normalize(element.TextContent)?.TrimEnd(':', ' ').StartsWith(label, StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Reads the text that follows a label element, as in <c>&lt;b&gt;Country:&lt;/b&gt; USA&lt;br&gt;</c>
+    /// or <c>&lt;td class="header"&gt;Size&lt;/td&gt;&lt;td&gt;1 GB&lt;/td&gt;</c>.
+    /// The value ends at the next line break or the next label. If the label is directly followed
+    /// by a line break, the value is taken from the next line.
+    /// </summary>
+    private static string? TextAfterLabel(IElement label, string labelSelector)
+    {
+        var text = new StringBuilder();
+        var skippedBreak = false;
+
+        for (var node = label.NextSibling; node is not null; node = node.NextSibling)
+        {
+            if (node is IText textNode)
+            {
+                text.Append(textNode.Data);
+                continue;
+            }
+
+            if (node is not IElement element)
+            {
+                continue;
+            }
+
+            if (element.LocalName == "br")
+            {
+                if (!string.IsNullOrWhiteSpace(text.ToString()) || skippedBreak)
+                {
+                    break;
+                }
+
+                skippedBreak = true;
+                continue;
+            }
+
+            if (element.Matches(labelSelector))
+            {
+                break;
+            }
+
+            text.Append(GetText(element));
+        }
+
+        return Normalize(text.ToString());
+    }
+
+    /// <summary>
+    /// Narrows the value with a regular expression: the first capture group if the pattern has one,
+    /// otherwise the whole match. No match gives <c>null</c>.
+    /// </summary>
+    private static string? ApplyPattern(string? value, string? pattern)
+    {
+        if (value is null || string.IsNullOrEmpty(pattern))
+        {
+            return value;
+        }
+
+        var match = Regex.Match(value, pattern, RegexOptions.None, TimeSpan.FromSeconds(1));
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        return Normalize(match.Groups.Count > 1 ? match.Groups[1].Value : match.Value);
     }
 
     private static IEnumerable<string> Split(string? value, string? separator)

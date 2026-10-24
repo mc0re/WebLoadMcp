@@ -46,6 +46,19 @@ public sealed class FieldOptions
     /// <summary>Attribute to read instead of the element text (e.g. "href", "src").</summary>
     public string? Attribute { get; set; }
 
+    /// <summary>
+    /// Only use elements matched by <see cref="Selector"/> whose text starts with this label
+    /// (e.g. "Country" for <c>&lt;b&gt;Country:&lt;/b&gt; USA&lt;br&gt;</c>).
+    /// The value is then the text following the label element, not the element itself.
+    /// </summary>
+    public string? Label { get; set; }
+
+    /// <summary>
+    /// Regular expression applied to the value: the first capture group is used if there is one,
+    /// otherwise the whole match. No match gives an empty value.
+    /// </summary>
+    public string? Pattern { get; set; }
+
     /// <summary>Return all matches as an array instead of only the first one.</summary>
     public bool Multiple { get; set; }
 

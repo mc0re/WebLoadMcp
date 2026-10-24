@@ -14,7 +14,6 @@ If `WebLoad:List:ItemSelector` matches one or more elements, the page is a **lis
 {
   "kind": "list",
   "path": "archive/",
-  "title": "Archive",
   "items": [
     { "year": "2023", "title": "First", "link": "archive/items/1" },
     { "year": "2024", "title": "Second", "link": "archive/items/2" }
@@ -30,7 +29,6 @@ If the selector matches nothing, the page is a single **item**, and the fields c
 {
   "kind": "item",
   "path": "archive/items/1",
-  "title": "First",
   "item": {
     "title": "First",
     "country": "Denmark",
@@ -70,13 +68,15 @@ Each field has these settings:
 ```
 
 - `Selector`: CSS selector, evaluated inside the list item (for list pages) or the whole document (for item pages).
-- `Attribute`: read this attribute instead of the element's text. `href` and `src` values are resolved to paths relative to the base URL.
+- `Attribute`: read this attribute instead of the element's text. `href` and `src` values that point to the base server become relative paths; other links (e.g. `magnet:`) are returned exactly as written.
+- `Label`: keep only elements whose text starts with this label, and return the text that *follows* the element up to the next line break, e.g. `{ "Selector": "#details b", "Label": "Страна" }` reads `США, Япония` from `<b>Страна: </b>США, Япония<br>`. If the label is directly followed by a line break, the next line is used. It also works for table rows like `<td class="header">Размер</td><td>28.35 GB</td>`.
+- `Pattern`: regular expression applied to the value; the first capture group is returned (or the whole match), e.g. `\((\d{4})` (written `"\\((\\d{4})"` in JSON) takes `2018` from `Wildling (2018) BDRemux`.
 - `Multiple`: return every match as an array instead of only the first match.
 - `Separator`: characters that split each value into list entries, e.g. `",/"` turns `"Drama, Comedy / Crime"` into `["Drama", "Comedy", "Crime"]`. Setting it makes the field a list.
 
 A list field with no matches is `[]`. A single-value field with no match is `null`.
 
-> The default CSS selectors in `appsettings.json` are placeholders until real page examples are available. Adjusting them should only need configuration changes, not code changes.
+The shipped `appsettings.json` matches the sample pages in `data/` (`list.html`, `item.html`), and `SampleDataTests` checks this. If the site's markup changes, update the selectors and the samples together.
 
 ## Build and test
 

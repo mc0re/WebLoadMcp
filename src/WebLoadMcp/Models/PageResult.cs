@@ -20,9 +20,6 @@ public sealed class PageResult
     /// <summary>The requested path, relative to the base URL.</summary>
     public required string Path { get; init; }
 
-    /// <summary>Content of the HTML &lt;title&gt; element.</summary>
-    public string? Title { get; init; }
-
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<Dictionary<string, object?>>? Items { get; init; }
 
